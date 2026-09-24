@@ -1,0 +1,360 @@
+{
+  "name": "vscode-markdown-annotate",
+  "displayName": "Markdown Annotate",
+  "description": "Highlight Markdown previews in multiple colours, add notes, and optionally write the highlights into the Markdown file as <mark> tags.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Akash Agarwal",
+    "email": "agarwal.akash333@gmail.com"
+  },
+  "license": "MIT",
+  "publisher": "akashagarwal",
+  "icon": "media/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/akashagarwal7/vscode-markdown-annotate.git"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "Visualization"
+  ],
+  "keywords": [
+    "markdown",
+    "highlight",
+    "annotate",
+    "annotation",
+    "preview",
+    "notes",
+    "mark",
+    "reading"
+  ],
+  "activationEvents": [
+    "onLanguage:markdown",
+    "onWebviewPanel:markdownAnnotate.preview"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "markdownAnnotate.openPreview",
+        "title": "Open Annotatable Preview",
+        "category": "Markdown Annotate",
+        "icon": "$(symbol-color)"
+      },
+      {
+        "command": "markdownAnnotate.openPreviewToSide",
+        "title": "Open Annotatable Preview to the Side",
+        "category": "Markdown Annotate",
+        "icon": "$(symbol-color)"
+      },
+      {
+        "command": "markdownAnnotate.writeHighlightsToFile",
+        "title": "Write Highlights into Markdown File",
+        "category": "Markdown Annotate",
+        "icon": "$(arrow-down)"
+      },
+      {
+        "command": "markdownAnnotate.moveHighlightsOutOfFile",
+        "title": "Move Highlights out of Markdown File",
+        "category": "Markdown Annotate",
+        "icon": "$(arrow-up)"
+      },
+      {
+        "command": "markdownAnnotate.toggleWriteToFile",
+        "title": "Toggle Writing New Highlights into File",
+        "category": "Markdown Annotate"
+      },
+      {
+        "command": "markdownAnnotate.cyclePreviewTheme",
+        "title": "Switch Preview Theme (Auto / Light / Dark)",
+        "category": "Markdown Annotate"
+      },
+      {
+        "command": "markdownAnnotate.exportHighlights",
+        "title": "Export Highlights as Markdown",
+        "category": "Markdown Annotate",
+        "icon": "$(export)"
+      },
+      {
+        "command": "markdownAnnotate.clearHighlights",
+        "title": "Clear All Highlights",
+        "category": "Markdown Annotate",
+        "icon": "$(clear-all)"
+      },
+      {
+        "command": "markdownAnnotate.revealHighlight",
+        "title": "Reveal Highlight",
+        "category": "Markdown Annotate"
+      },
+      {
+        "command": "markdownAnnotate.changeHighlightColor",
+        "title": "Change Colour",
+        "category": "Markdown Annotate",
+        "icon": "$(symbol-color)"
+      },
+      {
+        "command": "markdownAnnotate.editHighlightNote",
+        "title": "Edit Note",
+        "category": "Markdown Annotate",
+        "icon": "$(note)"
+      },
+      {
+        "command": "markdownAnnotate.deleteHighlight",
+        "title": "Delete Highlight",
+        "category": "Markdown Annotate",
+        "icon": "$(trash)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "markdownAnnotate.openPreviewToSide",
+          "when": "editorLangId == markdown && !notebookEditorFocused",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "markdownAnnotate.openPreview",
+          "when": "resourceLangId == markdown",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "markdownAnnotate.openPreviewToSide",
+          "when": "editorLangId == markdown",
+          "group": "navigation"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "markdownAnnotate.revealHighlight",
+          "when": "false"
+        },
+        {
+          "command": "markdownAnnotate.changeHighlightColor",
+          "when": "false"
+        },
+        {
+          "command": "markdownAnnotate.editHighlightNote",
+          "when": "false"
+        },
+        {
+          "command": "markdownAnnotate.deleteHighlight",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "markdownAnnotate.exportHighlights",
+          "when": "view == markdownAnnotate.highlights",
+          "group": "navigation@1"
+        },
+        {
+          "command": "markdownAnnotate.writeHighlightsToFile",
+          "when": "view == markdownAnnotate.highlights",
+          "group": "1_file@1"
+        },
+        {
+          "command": "markdownAnnotate.moveHighlightsOutOfFile",
+          "when": "view == markdownAnnotate.highlights",
+          "group": "1_file@2"
+        },
+        {
+          "command": "markdownAnnotate.toggleWriteToFile",
+          "when": "view == markdownAnnotate.highlights",
+          "group": "1_file@3"
+        },
+        {
+          "command": "markdownAnnotate.clearHighlights",
+          "when": "view == markdownAnnotate.highlights",
+          "group": "2_clear"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "markdownAnnotate.changeHighlightColor",
+          "when": "view == markdownAnnotate.highlights && viewItem =~ /^highlight/",
+          "group": "inline@1"
+        },
+        {
+          "command": "markdownAnnotate.editHighlightNote",
+          "when": "view == markdownAnnotate.highlights && viewItem =~ /^highlight/",
+          "group": "inline@2"
+        },
+        {
+          "command": "markdownAnnotate.deleteHighlight",
+          "when": "view == markdownAnnotate.highlights && viewItem =~ /^highlight/",
+          "group": "inline@3"
+        },
+        {
+          "command": "markdownAnnotate.changeHighlightColor",
+          "when": "view == markdownAnnotate.highlights && viewItem =~ /^highlight/",
+          "group": "1@1"
+        },
+        {
+          "command": "markdownAnnotate.editHighlightNote",
+          "when": "view == markdownAnnotate.highlights && viewItem =~ /^highlight/",
+          "group": "1@2"
+        },
+        {
+          "command": "markdownAnnotate.deleteHighlight",
+          "when": "view == markdownAnnotate.highlights && viewItem =~ /^highlight/",
+          "group": "2@1"
+        }
+      ]
+    },
+    "views": {
+      "explorer": [
+        {
+          "id": "markdownAnnotate.highlights",
+          "name": "Markdown Highlights",
+          "icon": "media/preview-icon.svg"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "markdownAnnotate.highlights",
+        "contents": "No highlights yet.\nOpen an annotatable preview of a Markdown file, select text and pick a colour.\n[Open Annotatable Preview](command:markdownAnnotate.openPreviewToSide)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "markdownAnnotate.openPreviewToSide",
+        "key": "ctrl+alt+h",
+        "mac": "cmd+alt+h",
+        "when": "editorLangId == markdown"
+      }
+    ],
+    "configuration": {
+      "title": "Markdown Annotate",
+      "properties": {
+        "markdownAnnotate.writeToFile": {
+          "type": "boolean",
+          "default": false,
+          "markdownDescription": "Write new highlights into the Markdown source as `<mark data-hl=\"…\">` tags instead of storing them separately. Existing highlights can be moved either way with **Write Highlights into Markdown File** / **Move Highlights out of Markdown File**."
+        },
+        "markdownAnnotate.previewTheme": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "light",
+            "dark"
+          ],
+          "enumDescriptions": [
+            "Follow the VS Code colour theme.",
+            "Always render the annotatable preview light.",
+            "Always render the annotatable preview dark."
+          ],
+          "default": "auto",
+          "description": "Colour theme of the annotatable preview. Also switchable from the preview header."
+        },
+        "markdownAnnotate.storage": {
+          "type": "string",
+          "enum": [
+            "workspace",
+            "sidecar"
+          ],
+          "enumDescriptions": [
+            "Keep highlights in VS Code's private workspace storage.",
+            "Keep highlights in a `<file>.md.annotations.json` file next to each document (shareable via git)."
+          ],
+          "default": "workspace",
+          "markdownDescription": "Where highlights that are *not* written into the Markdown file are kept. Switching does not migrate existing highlights."
+        },
+        "markdownAnnotate.colors": {
+          "type": "array",
+          "markdownDescription": "Highlight palette. `name` is stored with each highlight (and in `data-hl` for file highlights); `color` is any CSS colour (hex recommended so the editor can tint it). Keys `1`–`9` pick colours in order.",
+          "items": {
+            "type": "object",
+            "required": [
+              "name",
+              "color"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[\\w-]+$"
+              },
+              "color": {
+                "type": "string"
+              }
+            }
+          },
+          "default": [
+            {
+              "name": "yellow",
+              "color": "#fde047"
+            },
+            {
+              "name": "green",
+              "color": "#86efac"
+            },
+            {
+              "name": "blue",
+              "color": "#93c5fd"
+            },
+            {
+              "name": "pink",
+              "color": "#f9a8d4"
+            },
+            {
+              "name": "orange",
+              "color": "#fdba74"
+            },
+            {
+              "name": "purple",
+              "color": "#c4b5fd"
+            }
+          ]
+        },
+        "markdownAnnotate.fileMarks.inlineStyle": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Add an inline `style` with the colour to `<mark>` tags written into the file, so other Markdown renderers show the right colour."
+        },
+        "markdownAnnotate.showInEditor": {
+          "type": "boolean",
+          "default": true,
+          "description": "Also tint highlighted text in the Markdown source editor."
+        },
+        "markdownAnnotate.scrollSync": {
+          "type": "boolean",
+          "default": true,
+          "description": "Scroll the annotatable preview along with the Markdown editor."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run check && node esbuild.mjs --production",
+    "build": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "check": "tsc -p ./",
+    "pretest": "tsc -p tsconfig.test.json",
+    "test": "mocha --ui tdd \"out-test/test/unit/**/*.test.js\"",
+    "test:integration": "npm run build && tsc -p tsconfig.test.json && node ./out-test/test/integration/runTest.js",
+    "package": "npx --yes @vscode/vsce package",
+    "publish": "npx --yes @vscode/vsce publish",
+    "harness": "node esbuild.mjs && esbuild test/harness/harness.ts --bundle --outfile=out-harness/harness.js --format=iife"
+  },
+  "dependencies": {
+    "highlight.js": "^11.12.0",
+    "markdown-it": "^14.3.2"
+  },
+  "devDependencies": {
+    "@types/markdown-it": "^14.2.0",
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^20.19.43",
+    "@types/vscode": "1.85",
+    "@vscode/test-electron": "^3.1.0",
+    "esbuild": "^0.28.2",
+    "mocha": "^10.8.2",
+    "typescript": "^5.9.3"
+  }
+}

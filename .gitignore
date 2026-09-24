@@ -1,0 +1,8 @@
+node_modules/
+dist/
+out-test/
+out-harness/
+*.vsix
+.vscode-test/
+.DS_Store
+npm-debug.log*
