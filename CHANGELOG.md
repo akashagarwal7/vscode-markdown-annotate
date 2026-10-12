@@ -1,9 +1,11 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
-- **Diff** button in the preview header: show changes since the last commit (`HEAD`) as a rendered diff, with change marks on the scrollbar.
-- Highlights are marked on the preview's scrollbar in their colours.
+- **Git diff** button in the preview header, on by default: show changes since the last commit (`HEAD`) as a rendered diff, with change marks on the scrollbar.
+- Highlights are marked on the preview's scrollbar in their colours; highlights with a note are outlined.
+- The preview draws its own scrollbar, so the marks show in VS Code and Cursor alike.
+- The README carries a few real highlights to try the preview on.
 
 ## 0.1.0
 

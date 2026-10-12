@@ -19,7 +19,8 @@ declare global {
 
 const vscode = acquireVsCodeApi();
 const initialState = window.__ANNOTATE_STATE__;
-let viewState: WebviewState = { ...vscode.getState(), uri: initialState.uri };
+// The git diff view is on unless turned off in this preview.
+let viewState: WebviewState = { diff: true, ...vscode.getState(), uri: initialState.uri };
 vscode.setState(viewState);
 
 const post = (message: FromWebview) => vscode.postMessage(message);
@@ -103,10 +104,11 @@ function applyTheme(next: PreviewTheme): void {
 new MutationObserver(() => applyTheme(theme)).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 applyTheme('auto');
 
-// Diff: show what changed since the last commit.
-const diffButton = el('button', 'ma-diff-toggle', 'Diff');
+// Git diff: show what changed since the last commit.
+const DIFF_TITLE = 'Show changes since the last commit (HEAD)';
+const diffButton = el('button', 'ma-diff-toggle', 'Git diff');
 diffButton.type = 'button';
-diffButton.title = 'Show changes since the last commit (HEAD)';
+diffButton.title = DIFF_TITLE;
 diffButton.setAttribute('aria-pressed', String(!!viewState.diff));
 diffButton.addEventListener('click', () => {
   const value = !viewState.diff;
@@ -169,11 +171,13 @@ function updateHeader(): void {
     count += ` · ${unanchored} not found`;
   }
   const diff = current.diff;
-  if (diff && 'unavailable' in diff) {
-    count += ` · ${diff.unavailable}`;
-  } else if (diff && !diff.view.changed.length && !diff.view.removed.length) {
+  if (diff && 'view' in diff && !diff.view.changed.length && !diff.view.removed.length) {
     count += ` · No changes since ${diff.base}`;
   }
+  // On by default, so a file outside git shouldn't nag: explain on the button instead.
+  const unavailable = diff && 'unavailable' in diff ? diff.unavailable : undefined;
+  diffButton.classList.toggle('ma-unavailable', !!unavailable);
+  diffButton.title = unavailable ? `${DIFF_TITLE}: ${unavailable}` : DIFF_TITLE;
   countEl.textContent = count;
   countEl.title = unanchored ? 'Some highlights no longer match the document text' : '';
   toggle.checked = current.writeToFile;
@@ -409,7 +413,9 @@ function updateMarks(): void {
       mark.top = Math.min(mark.top, rect.top);
       mark.bottom = Math.max(mark.bottom, rect.bottom);
     } else {
-      byId.set(id, { top: rect.top, bottom: rect.bottom, className: 'ma-hl-mark', color: span.dataset.color });
+      // Highlights with a note (kept in `title`) are marked distinctly.
+      const className = span.title ? 'ma-hl-mark ma-noted' : 'ma-hl-mark';
+      byId.set(id, { top: rect.top, bottom: rect.bottom, className, color: span.dataset.color });
     }
   }
 
@@ -426,7 +432,8 @@ function updateMarks(): void {
       const top = Math.round((mark.top + window.scrollY) * scale);
       node.style.top = `${top}px`;
       // Keep small marks visible.
-      node.style.height = `${Math.max(3, Math.round((mark.bottom + window.scrollY) * scale) - top)}px`;
+      const min = mark.className.includes('ma-noted') ? 6 : 3;
+      node.style.height = `${Math.max(min, Math.round((mark.bottom + window.scrollY) * scale) - top)}px`;
       if (mark.color) {
         node.dataset.color = mark.color;
       }

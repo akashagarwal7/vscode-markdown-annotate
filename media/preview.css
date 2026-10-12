@@ -127,6 +127,7 @@ html > body[data-theme='dark'] {
 
 .ma-diff-toggle {
   flex-shrink: 0;
+  white-space: nowrap;
   border: 1px solid var(--ma-border);
   border-radius: 4px;
 }
@@ -145,6 +146,12 @@ html > body[data-theme='dark'] {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
   font-weight: 600;
+}
+
+/* Git diff is on, but this file has no git history to compare with. */
+.ma-diff-toggle.ma-unavailable {
+  opacity: 0.55;
+  font-weight: normal;
 }
 
 .ma-theme button:focus-visible,
@@ -524,6 +531,12 @@ html::-webkit-scrollbar {
 /* --hl comes from the palette's [data-color] rules. */
 .ma-ruler-mark.ma-hl-mark {
   background: var(--hl, #fde047);
+}
+
+/* A highlight with a note: outlined in the text colour so it stands out. */
+.ma-ruler-mark.ma-noted {
+  box-shadow: inset 0 0 0 1px var(--vscode-editor-foreground);
+  border-radius: 1px;
 }
 
 .ma-ruler-thumb {

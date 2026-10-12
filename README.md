@@ -4,17 +4,19 @@ Highlight a Markdown preview in several colours, attach notes, and — if you wa
 
 ![Annotatable preview with highlights and the colour picker](docs/preview-light.png)
 
+This README has a few real highlights written into it: open it with **Open Annotatable Preview** to see them, with their notes, in the preview and on its scrollbar.
+
 ## Features
 
 ### Highlight the preview
 
-Run **Markdown Annotate: Open Annotatable Preview to the Side** (`Cmd+Alt+H` / `Ctrl+Alt+H`, or the colour icon in the editor title bar). Select any text and a small colour picker appears; click a colour or press `1`–`9`.
+Run **Markdown Annotate: Open Annotatable Preview to the Side** (`Cmd+Alt+H` / `Ctrl+Alt+H`, or the colour icon in the editor title bar). <mark data-hl="yellow" data-hl-id="rdm001" style="background-color:#fde047;color:#1f2328">Select any text and a small colour picker appears</mark>; click a colour or press `1`–`9`.
 
 Selections can span formatting, links, list items, table cells and paragraphs.
 
 ### Recolour, annotate, delete
 
-Every highlight is also marked on the preview's scrollbar in its colour, so you can see where they are in a long document.
+Every highlight is also marked on the preview's scrollbar in its colour, so you can see where they are in a long document. Highlights with a note get an outlined mark.
 
 Click a highlight to open its popover:
 
@@ -33,9 +35,9 @@ Fenced code blocks with a language (```` ```ts ````, ```` ```python ````, …) g
 
 The **Auto / Light / Dark** switch in the preview header either follows your VS Code theme or forces a light or dark preview, e.g. a light page for reading while the editor stays dark. The choice is remembered (`markdownAnnotate.previewTheme`), and **Switch Preview Theme** cycles it from the Command Palette.
 
-### Diff against git
+### Git diff
 
-The **Diff** button in the preview header shows what changed since the last commit (`HEAD`), rendered: new or changed blocks get a green bar, and removed or replaced blocks are shown in red, struck through, where they used to be. The changes are also marked on the scrollbar, like the editor's overview ruler: changes in the left half, highlights in the right. It updates as you type and after commits. Files that aren't committed yet show entirely as new. Changes are shown per top-level block (a paragraph, list, table, …), so editing one list item marks the whole list. Highlighting works as usual on the current text; the removed text can't be highlighted. Uses VS Code's built-in Git extension.
+The **Git diff** button in the preview header (on by default) shows what changed since the last commit (`HEAD`), rendered: new or changed blocks get a green bar, and removed or replaced blocks are shown in red, struck through, where they used to be. The changes are also marked on the scrollbar, like the editor's overview ruler: changes in the left half, highlights in the right. It updates as you type and after commits. <mark data-hl="pink" data-hl-id="rdm002" title="Open this README in the annotatable preview: these highlights are real, and show on its scrollbar." style="background-color:#f9a8d4;color:#1f2328">Files that aren't committed yet show entirely as new.</mark> Changes are shown per top-level block (a paragraph, list, table, …), so editing one list item marks the whole list. Highlighting works as usual on the current text; the removed text can't be highlighted. Uses VS Code's built-in Git extension; outside a git repository the button is dimmed and its tooltip says why.
 
 ### Stored separately, or written into the file
 
@@ -54,7 +56,7 @@ Turn on **Write highlights into file** in the preview header (or the `markdownAn
 
 When a selection crosses Markdown syntax (say it starts inside `**bold**` and ends outside it), the highlight is written as several `<mark>` pieces sharing one `data-hl-id`, so the Markdown still renders the same. Text inside fenced code blocks can be highlighted but not written into the file; those highlights stay stored and you get a warning.
 
-Every edit goes through the normal editor, so **Undo** works and nothing is saved to disk until you save.
+<mark data-hl="green" data-hl-id="rdm003" title="Written into this file as a &lt;mark&gt; tag; the **bold** inside it still renders as Markdown." style="background-color:#86efac;color:#1f2328">Every edit goes through the normal editor, so **Undo** works</mark> and nothing is saved to disk until you save.
 
 ### In the editor and the sidebar
 
