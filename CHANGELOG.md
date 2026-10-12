@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0
+
+- **Sync scroll** is set separately for each preview, so turning it off in one no longer turns it off in the other. The `markdownAnnotate.scrollSync` setting now sets it for newly opened previews. A second preview opened beside the first starts with it off.
+
 ## 0.6.0
 
 - **Duplicate Annotatable Preview** (the split icon in a preview's title bar) opens a second preview of the file beside the first, at the same place, to read two parts of a long file side by side.
