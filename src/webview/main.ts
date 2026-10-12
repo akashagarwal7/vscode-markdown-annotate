@@ -58,6 +58,13 @@ toggle.addEventListener('change', () => post({ type: 'setWriteToFile', value: to
 toggleLabel.append(toggle, document.createTextNode(' Write highlights into file'));
 toggleLabel.title = 'When on, new highlights are written into the Markdown source as <mark> tags';
 
+const syncLabel = el('label', 'ma-toggle');
+const syncToggle = el('input');
+syncToggle.type = 'checkbox';
+syncToggle.addEventListener('change', () => post({ type: 'setScrollSync', value: syncToggle.checked }));
+syncLabel.append(syncToggle, document.createTextNode(' Sync scroll'));
+syncLabel.title = 'Keep the preview and the editor scrolled to the same place, in both directions';
+
 // Theme: follow VS Code, or force light/dark for reading.
 const themes: { value: PreviewTheme; label: string; title: string }[] = [
   { value: 'auto', label: 'Auto', title: 'Follow the VS Code colour theme' },
@@ -119,7 +126,7 @@ diffButton.addEventListener('click', () => {
   post({ type: 'setDiff', value });
 });
 
-header.append(titleEl, countEl, el('span', 'ma-spacer'), diffButton, themeSwitch, toggleLabel);
+header.append(titleEl, countEl, el('span', 'ma-spacer'), diffButton, themeSwitch, syncLabel, toggleLabel);
 document.body.prepend(header);
 
 const toolbar = el('div', 'ma-toolbar');
@@ -182,6 +189,7 @@ function updateHeader(): void {
   countEl.textContent = count;
   countEl.title = unanchored ? 'Some highlights no longer match the document text' : '';
   toggle.checked = current.writeToFile;
+  syncToggle.checked = current.scrollSync;
   if (current.theme !== theme) {
     applyTheme(current.theme);
   }
@@ -830,19 +838,74 @@ window.addEventListener('scroll', () => {
     viewState = { ...viewState, scrollY: window.scrollY };
     vscode.setState(viewState);
   }, 100);
+  if (current?.scrollSync && Date.now() >= quietUntil && !syncFrame) {
+    syncFrame = requestAnimationFrame(() => {
+      syncFrame = 0;
+      const line = topLine();
+      if (line !== undefined) {
+        post({ type: 'scrolled', line });
+      }
+    });
+  }
 });
 
-function scrollToLine(line: number): void {
-  let best: HTMLElement | undefined;
-  for (const block of content.querySelectorAll<HTMLElement>('[data-line]')) {
-    if (Number(block.dataset.line) <= line) {
-      best = block;
-    } else {
-      break;
+// ─── Scroll sync ────────────────────────────────────────────────────────────
+
+/** Until then, scroll events are the result of following the editor and aren't sent back. */
+let quietUntil = 0;
+let syncFrame = 0;
+
+/** Source-mapped elements in document order, with where each starts on the page. */
+function lineAnchors(): { line: number; top: number }[] {
+  const anchors: { line: number; top: number }[] = [];
+  for (const node of content.querySelectorAll<HTMLElement>('[data-line]')) {
+    const line = Number(node.dataset.line);
+    // Keep lines and positions both increasing, so either can be interpolated.
+    const last = anchors[anchors.length - 1];
+    const top = node.getBoundingClientRect().top + window.scrollY;
+    if (!last || (line > last.line && top > last.top)) {
+      anchors.push({ line, top });
     }
   }
-  const offset = header.offsetHeight + 8;
-  window.scrollTo({ top: best ? best.getBoundingClientRect().top + window.scrollY - offset : 0 });
+  return anchors;
+}
+
+/** Page offset that puts content just below the header. */
+const syncOffset = () => header.offsetHeight + 8;
+
+/** Source line at the top of the view, interpolated between source-mapped elements. */
+function topLine(): number | undefined {
+  const anchors = lineAnchors();
+  const y = window.scrollY + syncOffset();
+  let i = anchors.length - 1;
+  while (i > 0 && anchors[i].top > y) {
+    i--;
+  }
+  const a = anchors[i];
+  const b = anchors[i + 1];
+  if (!a) {
+    return undefined;
+  }
+  if (!b || y <= a.top) {
+    return a.line;
+  }
+  return Math.floor(a.line + ((y - a.top) / (b.top - a.top)) * (b.line - a.line));
+}
+
+function scrollToLine(line: number): void {
+  const anchors = lineAnchors();
+  let i = anchors.length - 1;
+  while (i > 0 && anchors[i].line > line) {
+    i--;
+  }
+  const a = anchors[i];
+  const b = anchors[i + 1];
+  let top = 0;
+  if (a && a.line <= line) {
+    top = b ? a.top + ((line - a.line) / (b.line - a.line)) * (b.top - a.top) : a.top;
+  }
+  quietUntil = Date.now() + 300;
+  window.scrollTo({ top: top - syncOffset() });
 }
 
 function focusHighlight(id: string): void {

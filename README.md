@@ -76,7 +76,7 @@ When a selection crosses Markdown syntax (say it starts inside `**bold**` and en
 | `markdownAnnotate.colors` | yellow, green, blue, pink, orange, purple | The palette, as `{ "name", "color" }` items. `name` is saved with each highlight |
 | `markdownAnnotate.fileMarks.inlineStyle` | `true` | Add `style="background-color:…"` to written `<mark>` tags so other renderers show the colour |
 | `markdownAnnotate.showInEditor` | `true` | Tint highlights in the source editor |
-| `markdownAnnotate.scrollSync` | `true` | Scroll the preview along with the editor |
+| `markdownAnnotate.scrollSync` | `true` | Keep the preview and the editor scrolled together, both ways (also **Sync scroll** in the preview header) |
 
 ## How highlights are anchored
 

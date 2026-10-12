@@ -40,6 +40,7 @@ export interface RenderMessage {
   highlights: StoredHighlight[];
   palette: PaletteColor[];
   writeToFile: boolean;
+  scrollSync: boolean;
   theme: PreviewTheme;
   /** Present while the diff view is on: the diff, or why there is none. */
   diff?: { view: DiffView; base: string } | { unavailable: string };
@@ -58,6 +59,9 @@ export type FromWebview =
   | { type: 'delete'; id: string }
   | { type: 'revealLine'; line: number }
   | { type: 'setWriteToFile'; value: boolean }
+  | { type: 'setScrollSync'; value: boolean }
+  /** The preview was scrolled by the user; `line` is the source line now at its top. */
+  | { type: 'scrolled'; line: number }
   | { type: 'setTheme'; value: PreviewTheme }
   | { type: 'openLink'; href: string };
 

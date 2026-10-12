@@ -71,6 +71,10 @@ export function scrollSync(): boolean {
   return config().get<boolean>('scrollSync', true);
 }
 
+export async function setScrollSync(value: boolean): Promise<void> {
+  await config().update('scrollSync', value, vscode.ConfigurationTarget.Global);
+}
+
 /** Inline CSS written into `<mark>` tags so other renderers show the colour. */
 export function markStyle(color: string): string | undefined {
   return inlineStyles() ? `background-color:${colorOf(color)};color:#1f2328` : undefined;

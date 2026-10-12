@@ -2,7 +2,7 @@
 import * as vscode from 'vscode';
 import { blockDiff } from './core/diff';
 import { renderMarkdown } from './core/markdown';
-import { palette, previewTheme, scrollSync, setPreviewTheme, setWriteToFile, writeToFile } from './config';
+import { palette, previewTheme, scrollSync, setPreviewTheme, setScrollSync, setWriteToFile, writeToFile } from './config';
 import { BaseResult, GitBase } from './git';
 import type { HighlightService } from './highlights';
 import type { FromWebview, RenderMessage, ToWebview, WebviewState } from './protocol';
@@ -43,10 +43,7 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
       }),
       vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
         if (scrollSync() && e.textEditor === vscode.window.activeTextEditor && e.visibleRanges.length) {
-          this.previews.get(e.textEditor.document.uri.toString())?.post({
-            type: 'scrollToLine',
-            line: e.visibleRanges[0].start.line,
-          });
+          this.previews.get(e.textEditor.document.uri.toString())?.editorScrolled(e.visibleRanges[0].start.line);
         }
       }),
     );
@@ -145,6 +142,8 @@ export class Preview {
   /** Whether the webview shows the diff against HEAD. */
   private diff = false;
   private base?: Promise<BaseResult>;
+  /** Until then, editor scrolls are echoes of the preview's own and aren't sent back. */
+  private quietUntil = 0;
 
   constructor(
     readonly panel: vscode.WebviewPanel,
@@ -171,6 +170,12 @@ export class Preview {
   focusHighlight(id: string): void {
     this.panel.reveal(undefined, true);
     this.post({ type: 'focusHighlight', id });
+  }
+
+  editorScrolled(line: number): void {
+    if (Date.now() >= this.quietUntil) {
+      this.post({ type: 'scrollToLine', line });
+    }
   }
 
   scheduleRender(): void {
@@ -218,6 +223,7 @@ export class Preview {
       highlights: await this.service.store.get(this.uri),
       palette: palette(),
       writeToFile: writeToFile(this.uri),
+      scrollSync: scrollSync(),
       theme: previewTheme(),
       diff,
     });
@@ -271,6 +277,12 @@ export class Preview {
       case 'setWriteToFile':
         await setWriteToFile(message.value);
         return;
+      case 'setScrollSync':
+        await setScrollSync(message.value);
+        return;
+      case 'scrolled':
+        this.scrollEditor(message.line);
+        return;
       case 'setTheme':
         await setPreviewTheme(message.value);
         return;
@@ -281,6 +293,17 @@ export class Preview {
         await this.openLink(message.href);
         return;
     }
+  }
+
+  /** Follow the preview in an editor already showing the file; never open or focus one. */
+  private scrollEditor(line: number): void {
+    const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === this.uri.toString());
+    if (!scrollSync() || !editor) {
+      return;
+    }
+    const top = new vscode.Position(Math.min(line, editor.document.lineCount - 1), 0);
+    this.quietUntil = Date.now() + 300;
+    editor.revealRange(new vscode.Range(top, top), vscode.TextEditorRevealType.AtTop);
   }
 
   private async revealLine(line: number): Promise<void> {

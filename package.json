@@ -326,7 +326,7 @@
         "markdownAnnotate.scrollSync": {
           "type": "boolean",
           "default": true,
-          "description": "Scroll the annotatable preview along with the Markdown editor."
+          "description": "Keep the annotatable preview and the Markdown editor scrolled to the same place, in both directions. Also toggled by Sync scroll in the preview header."
         }
       }
     }
