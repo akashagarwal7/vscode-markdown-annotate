@@ -89,6 +89,37 @@ html > body[data-theme='dark'] {
   border-bottom: 1px solid var(--ma-border);
 }
 
+.ma-nav {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 2px;
+}
+
+.ma-nav button {
+  padding: 0 6px;
+  font: inherit;
+  line-height: 1.5;
+  color: var(--vscode-foreground);
+  background: none;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ma-nav button:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+
+.ma-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.ma-nav button:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
 .ma-title {
   min-width: 0;
   max-width: 100%;

@@ -65,6 +65,10 @@ function send() {
 
 function handle(m: FromWebview) {
   harness.messages.push(m);
+  // The extension only moves the editor; nothing to re-render.
+  if (m.type === 'scrolled') {
+    return;
+  }
   const map = buildTextMap(md, harness.source);
   const groups = groupPieces(parseMarks(map));
   switch (m.type) {

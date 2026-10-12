@@ -126,7 +126,26 @@ diffButton.addEventListener('click', () => {
   post({ type: 'setDiff', value });
 });
 
-header.append(titleEl, countEl, el('span', 'ma-spacer'), diffButton, themeSwitch, syncLabel, toggleLabel);
+// Back and forward through jumps within the preview, like a browser.
+const nav = el('div', 'ma-nav');
+const backButton = el('button', undefined, '←');
+const forwardButton = el('button', undefined, '→');
+const MOD = /Mac/.test(navigator.platform) ? '⌘' : 'Ctrl+';
+backButton.title = `Back (${MOD}[ or Alt+←)`;
+forwardButton.title = `Forward (${MOD}] or Alt+→)`;
+for (const [button, label] of [
+  [backButton, 'Back'],
+  [forwardButton, 'Forward'],
+] as const) {
+  button.type = 'button';
+  button.disabled = true;
+  button.setAttribute('aria-label', label);
+  nav.append(button);
+}
+backButton.addEventListener('click', () => goBack());
+forwardButton.addEventListener('click', () => goForward());
+
+header.append(nav, titleEl, countEl, el('span', 'ma-spacer'), diffButton, themeSwitch, syncLabel, toggleLabel);
 document.body.prepend(header);
 
 const toolbar = el('div', 'ma-toolbar');
@@ -556,7 +575,7 @@ ruler.addEventListener('pointerdown', (e) => {
   const { height, travel, scrollable } = thumbMetrics();
   if (e.target !== thumb) {
     const y = e.clientY - height / 2;
-    window.scrollTo({ top: (Math.max(0, Math.min(y, travel)) / travel) * scrollable });
+    jump(() => window.scrollTo({ top: (Math.max(0, Math.min(y, travel)) / travel) * scrollable }));
   }
   const startY = e.clientY;
   const startScroll = window.scrollY;
@@ -579,7 +598,11 @@ window.addEventListener('resize', scheduleRuler);
 // Images and fonts loading change block positions.
 new ResizeObserver(scheduleRuler).observe(content);
 
+/** Counts renders, so a saved offset is known to still be valid. */
+let renders = 0;
+
 function render(message: RenderMessage): void {
+  renders++;
   current = message;
   updatePalette(message.palette);
   content.innerHTML = message.html;
@@ -819,7 +842,10 @@ content.addEventListener('click', (e) => {
     e.preventDefault();
     const href = link.getAttribute('href') ?? '';
     if (href.startsWith('#')) {
-      document.getElementById(decodeURIComponent(href.slice(1)))?.scrollIntoView({ block: 'start' });
+      const target = document.getElementById(decodeURIComponent(href.slice(1)));
+      if (target) {
+        jump(() => target.scrollIntoView({ block: 'start' }));
+      }
     } else if (href) {
       post({ type: 'openLink', href });
     }
@@ -892,7 +918,8 @@ function topLine(): number | undefined {
   return Math.floor(a.line + ((y - a.top) / (b.top - a.top)) * (b.line - a.line));
 }
 
-function scrollToLine(line: number): void {
+/** Scroll so `line` is at the top. When following the editor, the scroll isn't sent back to it. */
+function scrollToLine(line: number, follow = true): void {
   const anchors = lineAnchors();
   let i = anchors.length - 1;
   while (i > 0 && anchors[i].line > line) {
@@ -904,16 +931,95 @@ function scrollToLine(line: number): void {
   if (a && a.line <= line) {
     top = b ? a.top + ((line - a.line) / (b.line - a.line)) * (b.top - a.top) : a.top;
   }
-  quietUntil = Date.now() + 300;
+  if (follow) {
+    quietUntil = Date.now() + 300;
+  }
   window.scrollTo({ top: top - syncOffset() });
 }
+
+// ─── Back and forward ───────────────────────────────────────────────────────
+
+/** A place in the document: its offset, or after a re-render its source line, which survives edits above it. */
+interface Place {
+  line?: number;
+  y: number;
+  render: number;
+}
+
+const MAX_HISTORY = 50;
+const places: Place[] = [];
+/** Index in `places` of where the view is now, or -1 before the first jump. */
+let at = -1;
+
+const here = (): Place => ({ line: topLine(), y: window.scrollY, render: renders });
+
+function updateNav(): void {
+  backButton.disabled = at <= 0;
+  forwardButton.disabled = at < 0 || at >= places.length - 1;
+}
+
+/** Run a scroll that takes the view elsewhere, so Back returns to where it was. */
+function jump(go: () => void): void {
+  const from = here();
+  go();
+  if (Math.abs(window.scrollY - from.y) < 1) {
+    return;
+  }
+  // Going somewhere new drops the forward history, as in a browser.
+  places.splice(Math.max(at, 0), Infinity, from, here());
+  if (places.length > MAX_HISTORY) {
+    places.splice(0, places.length - MAX_HISTORY);
+  }
+  at = places.length - 1;
+  updateNav();
+}
+
+function goTo(index: number): void {
+  if (index < 0 || index >= places.length || at < 0) {
+    return;
+  }
+  // Remember where the view was left, including any scrolling since the jump.
+  places[at] = here();
+  at = index;
+  const place = places[at];
+  if (place.render !== renders && place.line !== undefined) {
+    scrollToLine(place.line, false);
+  } else {
+    window.scrollTo({ top: place.y });
+  }
+  updateNav();
+}
+
+const goBack = () => goTo(at - 1);
+const goForward = () => goTo(at + 1);
+
+document.addEventListener('keydown', (e) => {
+  const editing = (e.target as HTMLElement).closest?.('textarea, input');
+  if (editing) {
+    return;
+  }
+  const back = (e.altKey && e.key === 'ArrowLeft') || ((e.metaKey || e.ctrlKey) && e.key === '[');
+  const forward = (e.altKey && e.key === 'ArrowRight') || ((e.metaKey || e.ctrlKey) && e.key === ']');
+  if (back || forward) {
+    e.preventDefault();
+    (back ? goBack : goForward)();
+  }
+});
+
+// The mouse's back and forward buttons.
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 3 || e.button === 4) {
+    e.preventDefault();
+    (e.button === 3 ? goBack : goForward)();
+  }
+});
 
 function focusHighlight(id: string): void {
   const spans = content.querySelectorAll<HTMLElement>(`.ma-hl[data-id="${CSS.escape(id)}"]`);
   if (!spans.length) {
     return;
   }
-  spans[0].scrollIntoView({ block: 'center' });
+  jump(() => spans[0].scrollIntoView({ block: 'center' }));
   for (const s of spans) {
     s.classList.remove('ma-flash');
     void s.offsetWidth;

@@ -27,6 +27,8 @@ Click a highlight to open its popover:
 
 `Cmd/Ctrl+click` anywhere in the preview also jumps to that line in the source.
 
+The **← →** buttons in the preview header go back and forward through jumps within the preview (links to headings, highlights picked in the sidebar, clicks on the scrollbar), like a browser. Also `Cmd/Ctrl+[` and `]`, `Alt+←` and `→`, or the mouse's back and forward buttons.
+
 ### Syntax highlighting
 
 Fenced code blocks with a language (```` ```ts ````, ```` ```python ````, …) get syntax colours from GitHub's light and dark palettes, following the preview theme. Bundled languages: Bash/Shell, C, C++, C#, CSS (also used for SCSS/Less), Diff, Dockerfile, Go, INI/TOML, Java, JavaScript, JSON, Kotlin, Makefile, Markdown, PHP, PowerShell, Python, Ruby, Rust, SQL, Swift, TypeScript, HTML/XML and YAML. Fences without a language are auto-detected among these; if the guess is weak (prose, file trees, one-line shell commands) the block stays plain, so tag those, e.g. ```` ```bash ````. Other languages show as plain text. Shell blocks (`bash`, `sh`, `zsh`, `shell`) also colour command names and `--flags`, as Prism does; `console` blocks with `$ ` prompts are shown as terminal sessions. Highlighting inside code works as usual.
