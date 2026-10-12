@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.0
+
+- **Git diff** marks tables row by row: editing one row no longer marks the whole table, and removed rows show in place.
+- **Git diff** marks the words that changed within an edited paragraph or row in a stronger colour, as the editor's inline diff does.
+
 ## 0.2.0
 
 - **Git diff** button in the preview header, on by default: show changes since the last commit (`HEAD`) as a rendered diff, with change marks on the scrollbar.
