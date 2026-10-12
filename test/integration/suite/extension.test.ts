@@ -21,6 +21,32 @@ suite('Markdown Annotate', () => {
     assert.ok(api.previews.get(doc.uri));
   });
 
+  test('duplicates into a second preview, and no further', async () => {
+    const first = api.previews.get(doc.uri)!;
+    const copy = await api.previews.duplicate(first);
+    assert.notStrictEqual(copy, first);
+    assert.strictEqual(copy.uri.toString(), doc.uri.toString());
+    // From either preview, the other one is reused.
+    assert.strictEqual(await api.previews.duplicate(first), copy);
+    assert.strictEqual(await api.previews.duplicate(copy), first);
+    assert.strictEqual(api.previews.all.length, 2);
+    copy.panel.dispose();
+    assert.deepStrictEqual(api.previews.all, [first]);
+  });
+
+  test('a link to another file replaces the other preview', async () => {
+    const first = api.previews.get(doc.uri)!;
+    const copy = await api.previews.duplicate(first);
+    const other = vscode.Uri.joinPath(doc.uri, '..', 'other.md');
+    await vscode.workspace.fs.writeFile(other, new TextEncoder().encode('# Other\n'));
+    const shown = await api.previews.showBeside(first, other);
+    assert.strictEqual(shown.uri.toString(), other.toString());
+    assert.strictEqual(api.previews.all.length, 2);
+    assert.ok(!api.previews.all.includes(copy));
+    shown.panel.dispose();
+    await vscode.workspace.fs.delete(other);
+  });
+
   test('stores a highlight without touching the file', async () => {
     const before = doc.getText();
     await api.service.create(doc, { exact: 'brown fox jumps over the lazy', prefix: 'The quick ', suffix: ' dog' }, 2, 'green');

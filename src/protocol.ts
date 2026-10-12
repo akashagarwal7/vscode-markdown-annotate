@@ -49,6 +49,8 @@ export interface RenderMessage {
 export type ToWebview =
   | RenderMessage
   | { type: 'scrollToLine'; line: number }
+  /** Go to a line as a jump, which Back returns from. */
+  | { type: 'goToLine'; line: number }
   | { type: 'focusHighlight'; id: string };
 
 export type FromWebview =
@@ -63,10 +65,14 @@ export type FromWebview =
   /** The preview was scrolled by the user; `line` is the source line now at its top. */
   | { type: 'scrolled'; line: number }
   | { type: 'setTheme'; value: PreviewTheme }
-  | { type: 'openLink'; href: string };
+  | { type: 'openLink'; href: string }
+  /** Cmd/Ctrl+Alt+click: open the link in a new preview beside; `line` is where an in-document link points. */
+  | { type: 'openLinkToSide'; href: string; line?: number };
 
 export interface WebviewState {
   uri: string;
   scrollY?: number;
   diff?: boolean;
+  /** For a new duplicate preview: the source line to open at. */
+  line?: number;
 }

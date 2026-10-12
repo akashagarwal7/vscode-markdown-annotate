@@ -107,6 +107,15 @@ export function activate(context: vscode.ExtensionContext): { service: Highlight
     );
   });
 
+  register('markdownAnnotate.duplicatePreview', async () => {
+    const source = previews.active;
+    if (source) {
+      await previews.duplicate(source);
+    } else {
+      void vscode.window.showInformationMessage('Markdown Annotate: focus an annotatable preview to duplicate it.');
+    }
+  });
+
   register('markdownAnnotate.cyclePreviewTheme', async () => {
     const order = ['auto', 'light', 'dark'] as const;
     await setPreviewTheme(order[(order.indexOf(previewTheme()) + 1) % order.length]);

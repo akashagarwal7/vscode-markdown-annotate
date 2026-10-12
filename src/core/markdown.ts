@@ -67,6 +67,12 @@ export function slugify(text: string): string {
  * Replace a leading YAML front matter block with spaces (newlines kept), so
  * it is not rendered while every source offset stays valid.
  */
+/** Source line of the heading a `#fragment` link points to, using the same ids as the preview. */
+export function headingLine(md: MarkdownIt, text: string, id: string): number | undefined {
+  const heading = md.parse(blankFrontMatter(text), {}).find((t) => t.type === 'heading_open' && t.attrGet('id') === id);
+  return heading?.map?.[0];
+}
+
 export function blankFrontMatter(text: string): string {
   const m = /^---[ \t]*\r?\n[\s\S]*?\r?\n(?:---|\.\.\.)[ \t]*(?:\r?\n|$)/.exec(text);
   if (!m) {

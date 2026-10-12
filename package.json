@@ -51,6 +51,13 @@
         "icon": "$(symbol-color)"
       },
       {
+        "command": "markdownAnnotate.duplicatePreview",
+        "title": "Duplicate Annotatable Preview",
+        "category": "Markdown Annotate",
+        "icon": "$(split-horizontal)",
+        "enablement": "markdownAnnotate.previewFocus"
+      },
+      {
         "command": "markdownAnnotate.writeHighlightsToFile",
         "title": "Write Highlights into Markdown File",
         "category": "Markdown Annotate",
@@ -113,6 +120,11 @@
         {
           "command": "markdownAnnotate.openPreviewToSide",
           "when": "editorLangId == markdown && !notebookEditorFocused",
+          "group": "navigation"
+        },
+        {
+          "command": "markdownAnnotate.duplicatePreview",
+          "when": "activeWebviewPanelId == markdownAnnotate.preview",
           "group": "navigation"
         }
       ],

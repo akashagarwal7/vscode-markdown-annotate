@@ -2,7 +2,7 @@ import * as assert from 'assert';
 import { findQuote, quoteFromRange, strip, TextQuote } from '../../src/core/anchor';
 import { blockDiff, diffLines } from '../../src/core/diff';
 import { wordDiff } from '../../src/core/words';
-import { blankFrontMatter, buildTextMap, createMarkdown, renderMarkdown } from '../../src/core/markdown';
+import { blankFrontMatter, buildTextMap, createMarkdown, headingLine, renderMarkdown } from '../../src/core/markdown';
 import {
   applyEdits,
   fileHighlights,
@@ -354,5 +354,12 @@ suite('diff', () => {
   test('word diff gives up on unrelated text', () => {
     assert.strictEqual(wordDiff('An entirely different sentence.', 'Nothing alike here at all!'), undefined);
     assert.deepStrictEqual(wordDiff('same', 'same'), { removed: [], added: [] });
+  });
+
+  test('finds the heading a fragment link points to', () => {
+    const text = '# Title\n\nText.\n\n## Next steps\n\n## Next steps\n';
+    assert.strictEqual(headingLine(md, text, 'next-steps'), 4);
+    assert.strictEqual(headingLine(md, text, 'next-steps-1'), 6);
+    assert.strictEqual(headingLine(md, text, 'missing'), undefined);
   });
 });

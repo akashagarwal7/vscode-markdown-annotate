@@ -21,7 +21,7 @@ declare global {
 const vscode = acquireVsCodeApi();
 const initialState = window.__ANNOTATE_STATE__;
 // The git diff view is on unless turned off in this preview.
-let viewState: WebviewState = { diff: true, ...vscode.getState(), uri: initialState.uri };
+let viewState: WebviewState = { diff: true, ...initialState, ...vscode.getState(), uri: initialState.uri };
 vscode.setState(viewState);
 
 const post = (message: FromWebview) => vscode.postMessage(message);
@@ -615,6 +615,9 @@ function render(message: RenderMessage): void {
     firstRender = false;
     if (viewState.scrollY) {
       window.scrollTo(0, viewState.scrollY);
+    } else if (viewState.line !== undefined) {
+      // A duplicate opens where the preview it came from was.
+      scrollToLine(viewState.line);
     }
   }
   if (popoverId) {
@@ -840,7 +843,17 @@ content.addEventListener('click', (e) => {
   }
   if (link) {
     e.preventDefault();
+    // VS Code's webview frame also listens for link clicks on the window, and
+    // scrolls to `#fragment` targets itself; links are handled here instead.
+    e.stopPropagation();
     const href = link.getAttribute('href') ?? '';
+    if (href && (e.metaKey || e.ctrlKey) && e.altKey) {
+      // As in the editor, the chord opens the target to the side: here, in a new preview.
+      const anchor = href.startsWith('#') ? document.getElementById(decodeURIComponent(href.slice(1))) : null;
+      post({ type: 'openLinkToSide', href, line: anchor ? lineOf(anchor) : undefined });
+      stayAt(window.scrollY);
+      return;
+    }
     if (href.startsWith('#')) {
       const target = document.getElementById(decodeURIComponent(href.slice(1)));
       if (target) {
@@ -864,7 +877,8 @@ window.addEventListener('scroll', () => {
     viewState = { ...viewState, scrollY: window.scrollY };
     vscode.setState(viewState);
   }, 100);
-  if (current?.scrollSync && Date.now() >= quietUntil && !syncFrame) {
+  // Sent even with sync off: a duplicate of this preview opens at the same place.
+  if (current && Date.now() >= quietUntil && !syncFrame) {
     syncFrame = requestAnimationFrame(() => {
       syncFrame = 0;
       const line = topLine();
@@ -935,6 +949,18 @@ function scrollToLine(line: number, follow = true): void {
     quietUntil = Date.now() + 300;
   }
   window.scrollTo({ top: top - syncOffset() });
+}
+
+/** Undo any scroll in the next moment, in case something else still reacts to a click (this view stays put). */
+function stayAt(y: number): void {
+  const restore = () => {
+    if (window.scrollY !== y) {
+      quietUntil = Date.now() + 300;
+      window.scrollTo({ top: y });
+    }
+  };
+  requestAnimationFrame(restore);
+  setTimeout(restore, 50);
 }
 
 // ─── Back and forward ───────────────────────────────────────────────────────
@@ -1032,6 +1058,9 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
   switch (message.type) {
     case 'render':
       render(message);
+      break;
+    case 'goToLine':
+      jump(() => scrollToLine(message.line));
       break;
     case 'scrollToLine':
       scrollToLine(message.line);

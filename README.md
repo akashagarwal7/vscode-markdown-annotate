@@ -27,6 +27,10 @@ Click a highlight to open its popover:
 
 `Cmd/Ctrl+click` anywhere in the preview also jumps to that line in the source.
 
+To read two parts of a long file side by side, run **Duplicate Annotatable Preview** (the split icon in a preview's title bar). A second preview of the file opens beside the first, at the same place. Up to two previews are open at a time. With two open, **Duplicate** in either one moves the other to the same place, and opening a third file swaps out the preview you looked at least recently. With **Sync scroll** on, the editor follows whichever preview you last scrolled or focused, and only that one follows the editor.
+
+`Cmd+Alt+click` (`Ctrl+Alt+click` on Windows and Linux) on a link opens it in the other preview, as the chord opens to the side in the editor. The other preview goes to the heading the link points to and switches files if it needs to, and the focus stays where you clicked. If only one preview is open, a second one opens beside it. Links to other kinds of file open in an editor beside the preview.
+
 The **← →** buttons in the preview header go back and forward through jumps within the preview (links to headings, highlights picked in the sidebar, clicks on the scrollbar), like a browser. Also `Cmd/Ctrl+[` and `]`, `Alt+←` and `→`, or the mouse's back and forward buttons.
 
 ### Syntax highlighting

@@ -1,7 +1,7 @@
 /** The annotatable preview: a webview panel rendering one Markdown document. */
 import * as vscode from 'vscode';
 import { blockDiff } from './core/diff';
-import { renderMarkdown } from './core/markdown';
+import { headingLine, renderMarkdown } from './core/markdown';
 import { palette, previewTheme, scrollSync, setPreviewTheme, setScrollSync, setWriteToFile, writeToFile } from './config';
 import { BaseResult, GitBase } from './git';
 import type { HighlightService } from './highlights';
@@ -9,12 +9,25 @@ import type { FromWebview, RenderMessage, ToWebview, WebviewState } from './prot
 
 export const VIEW_TYPE = 'markdownAnnotate.preview';
 
+/** Previews open at once: one to read in, and one beside it for links and duplicates. */
+const MAX_PREVIEWS = 2;
+
 /** Changes on every activation, i.e. after every install or reload. */
 const ASSET_VERSION = Date.now().toString(36);
 
 export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Disposable {
-  private readonly previews = new Map<string, Preview>();
+  /** Open previews; a file can have several, each scrolled to its own place. */
+  private readonly previews = new Set<Preview>();
+  /**
+   * Per file, the preview that follows the editor and that sidebar jumps go
+   * to: the one last focused or scrolled.
+   */
+  private readonly leads = new Map<string, Preview>();
+  /** Per file, until when editor scrolls are echoes of a preview's own and aren't sent back. */
+  private readonly quietUntil = new Map<string, number>();
   private activePreview?: Preview;
+  /** Open previews, most recently focused first. */
+  private recent: Preview[] = [];
   private readonly activeEmitter = new vscode.EventEmitter<void>();
   private readonly git = new GitBase();
   private readonly disposables: vscode.Disposable[] = [this.activeEmitter, this.git];
@@ -28,7 +41,7 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
   ) {
     this.disposables.push(
       vscode.window.registerWebviewPanelSerializer(VIEW_TYPE, this),
-      vscode.workspace.onDidChangeTextDocument((e) => this.previews.get(e.document.uri.toString())?.scheduleRender()),
+      vscode.workspace.onDidChangeTextDocument((e) => this.refresh(e.document.uri)),
       service.store.onDidChange((uri) => this.refresh(uri)),
       // A commit, checkout or stage can move the diff base.
       this.git.onDidChange(() => {
@@ -42,8 +55,14 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
         }
       }),
       vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
-        if (scrollSync() && e.textEditor === vscode.window.activeTextEditor && e.visibleRanges.length) {
-          this.previews.get(e.textEditor.document.uri.toString())?.editorScrolled(e.visibleRanges[0].start.line);
+        const key = e.textEditor.document.uri.toString();
+        if (
+          scrollSync() &&
+          e.textEditor === vscode.window.activeTextEditor &&
+          e.visibleRanges.length &&
+          Date.now() >= (this.quietUntil.get(key) ?? 0)
+        ) {
+          this.get(e.textEditor.document.uri)?.post({ type: 'scrollToLine', line: e.visibleRanges[0].start.line });
         }
       }),
     );
@@ -60,8 +79,71 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
     return this.activePreview;
   }
 
+  /** Open previews, most recently focused first. */
+  get all(): readonly Preview[] {
+    return this.recent;
+  }
+
+  /** The file's lead preview, if it has any. */
   get(uri: vscode.Uri): Preview | undefined {
-    return this.previews.get(uri.toString());
+    const key = uri.toString();
+    return this.leads.get(key) ?? [...this.previews].find((p) => p.uri.toString() === key);
+  }
+
+  /** Show the place `source` is scrolled to in the other preview. */
+  duplicate(source: Preview): Promise<Preview> {
+    return this.showBeside(source, source.uri, source.topLine);
+  }
+
+  /**
+   * Show `uri` at `line` in the other preview, keeping the focus in `source`:
+   * the one beside it if there is one (switched to `uri` if it shows another
+   * file), else a new one.
+   */
+  async showBeside(source: Preview, uri: vscode.Uri, line?: number): Promise<Preview> {
+    const other = this.recent.find((p) => p !== source);
+    if (!other) {
+      const diff = uri.toString() === source.uri.toString() ? source.showsDiff : undefined;
+      return this.create(uri, vscode.ViewColumn.Beside, true, { line, diff });
+    }
+    if (other.uri.toString() !== uri.toString()) {
+      return this.replace(other, uri, true, { line, diff: other.showsDiff });
+    }
+    other.panel.reveal(undefined, true);
+    if (line !== undefined) {
+      other.post({ type: 'goToLine', line });
+    }
+    return other;
+  }
+
+  private async create(
+    uri: vscode.Uri,
+    column: vscode.ViewColumn,
+    preserveFocus: boolean,
+    start?: Partial<WebviewState>,
+  ): Promise<Preview> {
+    const panel = vscode.window.createWebviewPanel(VIEW_TYPE, '', { viewColumn: column, preserveFocus }, this.webviewOptions(uri));
+    return this.attach(panel, uri, start);
+  }
+
+  /** Swap a preview for one of another file, in the same place. */
+  private replace(old: Preview, uri: vscode.Uri, preserveFocus: boolean, start?: Partial<WebviewState>): Promise<Preview> {
+    const column = old.panel.viewColumn ?? vscode.ViewColumn.Beside;
+    old.panel.dispose();
+    return this.create(uri, column, preserveFocus, start);
+  }
+
+  /** A preview was scrolled by the user: it leads from now on, and the editor follows it. */
+  private previewScrolled(preview: Preview, line: number): void {
+    const key = preview.uri.toString();
+    this.leads.set(key, preview);
+    const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === key);
+    if (!scrollSync() || !editor) {
+      return;
+    }
+    const top = new vscode.Position(Math.min(line, editor.document.lineCount - 1), 0);
+    this.quietUntil.set(key, Date.now() + 300);
+    editor.revealRange(new vscode.Range(top, top), vscode.TextEditorRevealType.AtTop);
   }
 
   async open(uri: vscode.Uri, column: vscode.ViewColumn, preserveFocus = false): Promise<Preview> {
@@ -70,13 +152,9 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
       existing.panel.reveal(column, preserveFocus);
       return existing;
     }
-    const panel = vscode.window.createWebviewPanel(
-      VIEW_TYPE,
-      '',
-      { viewColumn: column, preserveFocus },
-      this.webviewOptions(uri),
-    );
-    return this.attach(panel, uri);
+    // At the limit, the preview least recently looked at shows this file instead.
+    const oldest = this.recent.length >= MAX_PREVIEWS ? this.recent[this.recent.length - 1] : undefined;
+    return oldest ? this.replace(oldest, uri, preserveFocus) : this.create(uri, column, preserveFocus);
   }
 
   async deserializeWebviewPanel(panel: vscode.WebviewPanel, state: WebviewState | undefined): Promise<void> {
@@ -98,23 +176,33 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
     return { enableScripts: true, enableFindWidget: true, localResourceRoots: roots };
   }
 
-  private async attach(panel: vscode.WebviewPanel, uri: vscode.Uri): Promise<Preview> {
-    const preview = new Preview(panel, uri, this.extensionUri, this.service, this.git);
-    this.previews.set(uri.toString(), preview);
+  private async attach(panel: vscode.WebviewPanel, uri: vscode.Uri, start?: Partial<WebviewState>): Promise<Preview> {
+    const preview: Preview = new Preview(panel, uri, this.extensionUri, this.service, this.git, start, {
+      scrolled: (line) => this.previewScrolled(preview, line),
+      openBeside: (target, at) => this.showBeside(preview, target, at),
+    });
+    this.previews.add(preview);
+    this.recent.push(preview);
     panel.onDidDispose(() => {
-      this.previews.delete(uri.toString());
+      this.previews.delete(preview);
+      this.recent = this.recent.filter((p) => p !== preview);
+      if (this.leads.get(uri.toString()) === preview) {
+        this.leads.delete(uri.toString());
+      }
       if (this.activePreview === preview) {
         this.setActive(undefined);
       }
     });
     panel.onDidChangeViewState(({ webviewPanel }) => {
       if (webviewPanel.active) {
+        this.leads.set(uri.toString(), preview);
         this.setActive(preview);
       } else if (this.activePreview === preview) {
         this.setActive(undefined);
       }
     });
     if (panel.active) {
+      this.leads.set(uri.toString(), preview);
       this.setActive(preview);
     }
     await preview.init();
@@ -123,6 +211,9 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
 
   private setActive(preview: Preview | undefined): void {
     this.activePreview = preview;
+    if (preview) {
+      this.recent = [preview, ...this.recent.filter((p) => p !== preview)];
+    }
     void vscode.commands.executeCommand('setContext', 'markdownAnnotate.previewFocus', !!preview);
     this.activeEmitter.fire();
   }
@@ -141,9 +232,13 @@ export class Preview {
   private ready = false;
   /** Whether the webview shows the diff against HEAD. */
   private diff = false;
+
+  get showsDiff(): boolean {
+    return this.diff;
+  }
   private base?: Promise<BaseResult>;
-  /** Until then, editor scrolls are echoes of the preview's own and aren't sent back. */
-  private quietUntil = 0;
+  /** The source line at the top of the view, as last reported. */
+  topLine?: number;
 
   constructor(
     readonly panel: vscode.WebviewPanel,
@@ -151,6 +246,13 @@ export class Preview {
     private readonly extensionUri: vscode.Uri,
     private readonly service: HighlightService,
     private readonly git: GitBase,
+    /** For a duplicate: where to start, and whether to show the diff. */
+    private readonly start: Partial<WebviewState> | undefined,
+    private readonly host: {
+      scrolled(line: number): void;
+      /** Open `uri` in a new preview beside this one, at `line`. */
+      openBeside(uri: vscode.Uri, line?: number): Promise<unknown>;
+    },
   ) {
     panel.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'preview-icon.svg');
     panel.webview.onDidReceiveMessage((m: FromWebview) => void this.handle(m));
@@ -170,12 +272,6 @@ export class Preview {
   focusHighlight(id: string): void {
     this.panel.reveal(undefined, true);
     this.post({ type: 'focusHighlight', id });
-  }
-
-  editorScrolled(line: number): void {
-    if (Date.now() >= this.quietUntil) {
-      this.post({ type: 'scrollToLine', line });
-    }
   }
 
   scheduleRender(): void {
@@ -281,7 +377,8 @@ export class Preview {
         await setScrollSync(message.value);
         return;
       case 'scrolled':
-        this.scrollEditor(message.line);
+        this.topLine = message.line;
+        this.host.scrolled(message.line);
         return;
       case 'setTheme':
         await setPreviewTheme(message.value);
@@ -292,18 +389,10 @@ export class Preview {
       case 'openLink':
         await this.openLink(message.href);
         return;
+      case 'openLinkToSide':
+        await this.openLinkToSide(message.href, message.line);
+        return;
     }
-  }
-
-  /** Follow the preview in an editor already showing the file; never open or focus one. */
-  private scrollEditor(line: number): void {
-    const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === this.uri.toString());
-    if (!scrollSync() || !editor) {
-      return;
-    }
-    const top = new vscode.Position(Math.min(line, editor.document.lineCount - 1), 0);
-    this.quietUntil = Date.now() + 300;
-    editor.revealRange(new vscode.Range(top, top), vscode.TextEditorRevealType.AtTop);
   }
 
   private async revealLine(line: number): Promise<void> {
@@ -315,6 +404,42 @@ export class Preview {
     const pos = new vscode.Position(Math.min(line, doc.lineCount - 1), 0);
     editor.selection = new vscode.Selection(pos, pos);
     editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
+  }
+
+  /**
+   * A Markdown target (this file or another) opens in a new preview beside
+   * this one, at the heading or line it points to; anything else opens beside.
+   */
+  private async openLinkToSide(href: string, line?: number): Promise<void> {
+    if (href.startsWith('#')) {
+      await this.host.openBeside(this.uri, line);
+      return;
+    }
+    if (/^(https?|mailto):/i.test(href)) {
+      await vscode.env.openExternal(vscode.Uri.parse(href));
+      return;
+    }
+    const [path, fragment = ''] = href.split('#');
+    const target = this.resolvePath(path);
+    if (!target) {
+      return;
+    }
+    const lineMatch = /^L(\d+)/.exec(fragment);
+    let at = lineMatch ? Number(lineMatch[1]) - 1 : undefined;
+    if (!/\.(md|markdown|mdx?|mkd)$/i.test(target.path)) {
+      const selection = at === undefined ? undefined : new vscode.Range(at, 0, at, 0);
+      await vscode.commands.executeCommand('vscode.open', target, { viewColumn: vscode.ViewColumn.Beside, selection });
+      return;
+    }
+    if (at === undefined && fragment) {
+      try {
+        const text = (await vscode.workspace.openTextDocument(target)).getText();
+        at = headingLine(this.service.md, text, decodeURIComponent(fragment));
+      } catch {
+        // A missing file still opens; the preview says what is wrong.
+      }
+    }
+    await this.host.openBeside(target, at);
   }
 
   private async openLink(href: string): Promise<void> {
@@ -343,7 +468,7 @@ export class Preview {
     const bust = `?v=${ASSET_VERSION}`;
     const script = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'dist', 'webview.js')).toString() + bust;
     const style = webview.asWebviewUri(vscode.Uri.joinPath(this.extensionUri, 'media', 'preview.css')).toString() + bust;
-    const state: WebviewState = { uri: this.uri.toString() };
+    const state: WebviewState = { ...this.start, uri: this.uri.toString() };
     const csp = [
       "default-src 'none'",
       `img-src ${webview.cspSource} https: data:`,
