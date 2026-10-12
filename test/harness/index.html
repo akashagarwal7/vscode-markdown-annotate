@@ -5,6 +5,8 @@
 <title>Markdown Annotate harness</title>
 <link rel="stylesheet" href="../../media/preview.css">
 <style>
+  /* VS Code's webview default (pre/index.html), which disables ::-webkit-scrollbar styling. */
+  @layer vscode-default { html { scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background); } }
   :root { --vscode-editor-background:#ffffff; --vscode-editor-foreground:#1f2328; --vscode-foreground:#1f2328;
           --vscode-descriptionForeground:#6b7280; --vscode-editorWidget-background:#f8f8f8; --vscode-focusBorder:#0969da;
           --vscode-textLink-foreground:#0969da; --vscode-input-background:#fff; --vscode-errorForeground:#cf222e; }

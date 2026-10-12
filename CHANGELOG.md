@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **Diff** button in the preview header: show changes since the last commit (`HEAD`) as a rendered diff, with change marks on the scrollbar.
+- Highlights are marked on the preview's scrollbar in their colours.
+
 ## 0.1.0
 
 - Annotatable Markdown preview: select text and pick a colour to highlight it.

@@ -115,7 +115,8 @@ html > body[data-theme='dark'] {
   overflow: hidden;
 }
 
-.ma-theme button {
+.ma-theme button,
+.ma-diff-toggle {
   padding: 1px 8px;
   font: inherit;
   color: var(--ma-muted);
@@ -124,21 +125,30 @@ html > body[data-theme='dark'] {
   cursor: pointer;
 }
 
+.ma-diff-toggle {
+  flex-shrink: 0;
+  border: 1px solid var(--ma-border);
+  border-radius: 4px;
+}
+
 .ma-theme button + button {
   border-left: 1px solid var(--ma-border);
 }
 
-.ma-theme button:hover {
+.ma-theme button:hover,
+.ma-diff-toggle:hover {
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
 }
 
-.ma-theme button[aria-checked='true'] {
+.ma-theme button[aria-checked='true'],
+.ma-diff-toggle[aria-pressed='true'] {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
   font-weight: 600;
 }
 
-.ma-theme button:focus-visible {
+.ma-theme button:focus-visible,
+.ma-diff-toggle:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: -1px;
 }
@@ -413,6 +423,123 @@ body[data-effective-theme='dark'] .ma-hl .ma-hl {
     outline: 2px solid transparent;
     outline-offset: 2px;
   }
+}
+
+/* ─── Diff against git ───────────────────────────────────────────────────── */
+
+body {
+  --ma-diff-add: #1a7f37;
+  --ma-diff-del: #cf222e;
+}
+
+body[data-effective-theme='dark'] {
+  --ma-diff-add: #3fb950;
+  --ma-diff-del: #f85149;
+}
+
+.markdown-body > .ma-diff-add,
+.markdown-body > .ma-diff-del {
+  position: relative;
+}
+
+.markdown-body > .ma-diff-add {
+  background-color: color-mix(in srgb, var(--ma-diff-add) 12%, transparent);
+}
+
+.markdown-body > .ma-diff-del {
+  /* Keep the children's margins inside the tint. */
+  display: flow-root;
+  background-color: color-mix(in srgb, var(--ma-diff-del) 12%, transparent);
+  opacity: 0.85;
+}
+
+/* A change bar in the left margin, like the editor gutter. */
+.markdown-body > .ma-diff-add::before,
+.markdown-body > .ma-diff-del::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -12px;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--ma-diff-add);
+}
+
+.markdown-body > .ma-diff-del::before {
+  background: var(--ma-diff-del);
+}
+
+.ma-diff-del :is(p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote) {
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in srgb, var(--ma-diff-del) 60%, transparent);
+}
+
+/* ─── Scrollbar ───────────────────────────────────────────────────────────── */
+
+/* The native scrollbar is replaced by .ma-ruler, which can carry marks. */
+html {
+  scrollbar-width: none;
+}
+
+html::-webkit-scrollbar {
+  display: none;
+}
+
+.ma-ruler {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 15;
+  width: 10px;
+}
+
+.ma-ruler[hidden] {
+  display: none;
+}
+
+.ma-ruler-mark {
+  position: absolute;
+  left: 0;
+  right: 0;
+}
+
+.ma-ruler-mark.ma-left {
+  right: 50%;
+}
+
+.ma-ruler-mark.ma-right {
+  left: 50%;
+}
+
+.ma-ruler-mark.ma-add {
+  background: var(--ma-diff-add);
+}
+
+.ma-ruler-mark.ma-del {
+  background: var(--ma-diff-del);
+}
+
+/* --hl comes from the palette's [data-color] rules. */
+.ma-ruler-mark.ma-hl-mark {
+  background: var(--hl, #fde047);
+}
+
+.ma-ruler-thumb {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background-color: var(--vscode-scrollbarSlider-background, rgba(121, 121, 121, 0.4));
+}
+
+.ma-ruler-thumb:hover {
+  background-color: var(--vscode-scrollbarSlider-hoverBackground, rgba(100, 100, 100, 0.7));
+}
+
+.ma-ruler.ma-dragging .ma-ruler-thumb {
+  background-color: var(--vscode-scrollbarSlider-activeBackground, rgba(191, 191, 191, 0.4));
 }
 
 /* ─── Floating toolbar & popover ─────────────────────────────────────────── */

@@ -14,6 +14,8 @@ Selections can span formatting, links, list items, table cells and paragraphs.
 
 ### Recolour, annotate, delete
 
+Every highlight is also marked on the preview's scrollbar in its colour, so you can see where they are in a long document.
+
 Click a highlight to open its popover:
 
 - pick another colour
@@ -30,6 +32,10 @@ Fenced code blocks with a language (```` ```ts ````, ```` ```python ````, …) g
 ### Light or dark
 
 The **Auto / Light / Dark** switch in the preview header either follows your VS Code theme or forces a light or dark preview, e.g. a light page for reading while the editor stays dark. The choice is remembered (`markdownAnnotate.previewTheme`), and **Switch Preview Theme** cycles it from the Command Palette.
+
+### Diff against git
+
+The **Diff** button in the preview header shows what changed since the last commit (`HEAD`), rendered: new or changed blocks get a green bar, and removed or replaced blocks are shown in red, struck through, where they used to be. The changes are also marked on the scrollbar, like the editor's overview ruler: changes in the left half, highlights in the right. It updates as you type and after commits. Files that aren't committed yet show entirely as new. Changes are shown per top-level block (a paragraph, list, table, …), so editing one list item marks the whole list. Highlighting works as usual on the current text; the removed text can't be highlighted. Uses VS Code's built-in Git extension.
 
 ### Stored separately, or written into the file
 

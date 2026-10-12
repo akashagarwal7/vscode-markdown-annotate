@@ -1,9 +1,11 @@
 /** The annotatable preview: a webview panel rendering one Markdown document. */
 import * as vscode from 'vscode';
+import { blockDiff } from './core/diff';
 import { renderMarkdown } from './core/markdown';
 import { palette, previewTheme, scrollSync, setPreviewTheme, setWriteToFile, writeToFile } from './config';
+import { BaseResult, GitBase } from './git';
 import type { HighlightService } from './highlights';
-import type { FromWebview, ToWebview, WebviewState } from './protocol';
+import type { FromWebview, RenderMessage, ToWebview, WebviewState } from './protocol';
 
 export const VIEW_TYPE = 'markdownAnnotate.preview';
 
@@ -14,7 +16,8 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
   private readonly previews = new Map<string, Preview>();
   private activePreview?: Preview;
   private readonly activeEmitter = new vscode.EventEmitter<void>();
-  private readonly disposables: vscode.Disposable[] = [this.activeEmitter];
+  private readonly git = new GitBase();
+  private readonly disposables: vscode.Disposable[] = [this.activeEmitter, this.git];
 
   /** Fires when the focused preview changes. */
   readonly onDidChangeActive = this.activeEmitter.event;
@@ -27,6 +30,12 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
       vscode.window.registerWebviewPanelSerializer(VIEW_TYPE, this),
       vscode.workspace.onDidChangeTextDocument((e) => this.previews.get(e.document.uri.toString())?.scheduleRender()),
       service.store.onDidChange((uri) => this.refresh(uri)),
+      // A commit, checkout or stage can move the diff base.
+      this.git.onDidChange(() => {
+        for (const p of this.previews.values()) {
+          p.baseChanged();
+        }
+      }),
       vscode.workspace.onDidChangeConfiguration((e) => {
         if (e.affectsConfiguration('markdownAnnotate')) {
           this.refresh();
@@ -93,7 +102,7 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
   }
 
   private async attach(panel: vscode.WebviewPanel, uri: vscode.Uri): Promise<Preview> {
-    const preview = new Preview(panel, uri, this.extensionUri, this.service);
+    const preview = new Preview(panel, uri, this.extensionUri, this.service, this.git);
     this.previews.set(uri.toString(), preview);
     panel.onDidDispose(() => {
       this.previews.delete(uri.toString());
@@ -133,12 +142,16 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
 export class Preview {
   private timer?: ReturnType<typeof setTimeout>;
   private ready = false;
+  /** Whether the webview shows the diff against HEAD. */
+  private diff = false;
+  private base?: Promise<BaseResult>;
 
   constructor(
     readonly panel: vscode.WebviewPanel,
     readonly uri: vscode.Uri,
     private readonly extensionUri: vscode.Uri,
     private readonly service: HighlightService,
+    private readonly git: GitBase,
   ) {
     panel.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'preview-icon.svg');
     panel.webview.onDidReceiveMessage((m: FromWebview) => void this.handle(m));
@@ -165,6 +178,13 @@ export class Preview {
     this.timer = setTimeout(() => void this.render(), 150);
   }
 
+  baseChanged(): void {
+    this.base = undefined;
+    if (this.diff) {
+      this.scheduleRender();
+    }
+  }
+
   private async document(): Promise<vscode.TextDocument> {
     return vscode.workspace.openTextDocument(this.uri);
   }
@@ -181,9 +201,16 @@ export class Preview {
       return;
     }
     const webview = this.panel.webview;
-    const html = renderMarkdown(this.service.md, doc.getText(), {
-      resolveImage: (src) => this.resolveImage(webview, src),
-    });
+    const env = { resolveImage: (src: string) => this.resolveImage(webview, src) };
+    const html = renderMarkdown(this.service.md, doc.getText(), env);
+    let diff: RenderMessage['diff'];
+    if (this.diff) {
+      const base = await (this.base ??= this.git.head(this.uri));
+      diff =
+        'text' in base
+          ? { base: 'HEAD', view: blockDiff(this.service.md, base.text, doc.getText(), env) }
+          : { unavailable: base.unavailable };
+    }
     this.post({
       type: 'render',
       html,
@@ -192,6 +219,7 @@ export class Preview {
       palette: palette(),
       writeToFile: writeToFile(this.uri),
       theme: previewTheme(),
+      diff,
     });
   }
 
@@ -224,6 +252,11 @@ export class Preview {
     switch (message.type) {
       case 'ready':
         this.ready = true;
+        this.diff = !!message.diff;
+        await this.render();
+        return;
+      case 'setDiff':
+        this.diff = message.value;
         await this.render();
         return;
       case 'create':

@@ -1,5 +1,6 @@
 import * as assert from 'assert';
 import { findQuote, quoteFromRange, strip, TextQuote } from '../../src/core/anchor';
+import { blockDiff, diffLines } from '../../src/core/diff';
 import { blankFrontMatter, buildTextMap, createMarkdown, renderMarkdown } from '../../src/core/markdown';
 import {
   applyEdits,
@@ -260,5 +261,57 @@ suite('marks', () => {
     assert.ok(plan.ok);
     const out = applyEdits('word\n', insertEdits(plan.ranges, { id: 'i', color: 'pink' }, 'background-color:#f9a8d4'));
     assert.strictEqual(out, '<mark data-hl="pink" data-hl-id="i" style="background-color:#f9a8d4">word</mark>\n');
+  });
+});
+
+suite('diff', () => {
+  const lines = (s: string) => s.split('');
+
+  test('line diff marks added and removed lines', () => {
+    const d = diffLines(lines('abcdef'), lines('abXdeYf'));
+    assert.deepStrictEqual(d.removed, [false, false, true, false, false, false]);
+    assert.deepStrictEqual(d.added, [false, false, true, false, false, true, false]);
+    assert.deepStrictEqual(d.oldToNew, [0, 1, 2, 3, 4, 6]);
+  });
+
+  test('line diff handles empty sides', () => {
+    assert.deepStrictEqual(diffLines([], lines('ab')).added, [true, true]);
+    assert.deepStrictEqual(diffLines(lines('ab'), []).removed, [true, true]);
+    assert.deepStrictEqual(diffLines(lines('ab'), lines('ab')).added, [false, false]);
+  });
+
+  test('line diff finds a minimal script in a shuffled middle', () => {
+    const a = lines('xabcabbay');
+    const b = lines('xcbabacy');
+    const d = diffLines(a, b);
+    // LCS of the middles has length 4, so 3 removed and 2 added.
+    assert.strictEqual(d.removed.filter(Boolean).length, 3);
+    assert.strictEqual(d.added.filter(Boolean).length, 2);
+  });
+
+  test('block diff reports changed blocks and places removed ones', () => {
+    const base = '# Title\n\nOld paragraph.\n\nGone.\n\nKept.\n';
+    const current = '# Title\n\nNew paragraph.\n\nKept.\n\nAdded.\n';
+    const view = blockDiff(md, base, current);
+    assert.deepStrictEqual(view.changed, [2, 6]);
+    // Each old block goes where it was: the replaced one before its replacement.
+    assert.deepStrictEqual(
+      view.removed.map((r) => [r.before, r.html.replace(/<[^>]+>/g, '').trim()]),
+      [
+        [2, 'Old paragraph.'],
+        [4, 'Gone.'],
+      ],
+    );
+  });
+
+  test('removed blocks at the end have no anchor', () => {
+    const view = blockDiff(md, 'Keep.\n\nDrop.\n', 'Keep.\n');
+    assert.deepStrictEqual(view.changed, []);
+    assert.strictEqual(view.removed[0].before, undefined);
+  });
+
+  test('removed blocks resolve reference links from the old text', () => {
+    const view = blockDiff(md, 'See [x][1].\n\n[1]: https://example.com\n', '[1]: https://example.com\n');
+    assert.match(view.removed[0].html, /href="https:\/\/example.com"/);
   });
 });

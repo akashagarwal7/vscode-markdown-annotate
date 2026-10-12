@@ -1,6 +1,7 @@
 // Browser harness: stands in for the extension host so the webview can be
 // exercised outside VS Code. Build with `npm run harness`, open test/harness/index.html.
 import { findQuote } from '../../src/core/anchor';
+import { blockDiff } from '../../src/core/diff';
 import { buildTextMap, createMarkdown, renderMarkdown } from '../../src/core/markdown';
 import { applyEdits, groupPieces, insertEdits, newId, parseMarks, planMarks, removeEdits, retagEdits } from '../../src/core/marks';
 import type { FromWebview, StoredHighlight } from '../../src/protocol';
@@ -36,8 +37,12 @@ const answer = 42;
   stored: [] as StoredHighlight[],
   writeToFile: false,
   theme: 'auto' as 'auto' | 'light' | 'dark',
+  /** Stands in for the file at HEAD; the diff view compares against it. */
+  base: '',
+  diff: false,
   messages: [] as FromWebview[],
 };
+harness.base = harness.source;
 (window as any).__harness = harness;
 
 function send() {
@@ -50,6 +55,7 @@ function send() {
       palette,
       writeToFile: harness.writeToFile,
       theme: harness.theme,
+      diff: harness.diff ? { base: 'HEAD', view: blockDiff(md, harness.base, harness.source) } : undefined,
     },
     '*',
   );
@@ -62,6 +68,10 @@ function handle(m: FromWebview) {
   const groups = groupPieces(parseMarks(map));
   switch (m.type) {
     case 'ready':
+      harness.diff = !!m.diff;
+      break;
+    case 'setDiff':
+      harness.diff = m.value;
       break;
     case 'create': {
       const h: StoredHighlight = { id: newId(), color: m.color, quote: m.quote, line: m.line, createdAt: Date.now() };

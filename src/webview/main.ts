@@ -103,7 +103,20 @@ function applyTheme(next: PreviewTheme): void {
 new MutationObserver(() => applyTheme(theme)).observe(document.body, { attributes: true, attributeFilter: ['class'] });
 applyTheme('auto');
 
-header.append(titleEl, countEl, el('span', 'ma-spacer'), themeSwitch, toggleLabel);
+// Diff: show what changed since the last commit.
+const diffButton = el('button', 'ma-diff-toggle', 'Diff');
+diffButton.type = 'button';
+diffButton.title = 'Show changes since the last commit (HEAD)';
+diffButton.setAttribute('aria-pressed', String(!!viewState.diff));
+diffButton.addEventListener('click', () => {
+  const value = !viewState.diff;
+  viewState = { ...viewState, diff: value };
+  vscode.setState(viewState);
+  diffButton.setAttribute('aria-pressed', String(value));
+  post({ type: 'setDiff', value });
+});
+
+header.append(titleEl, countEl, el('span', 'ma-spacer'), diffButton, themeSwitch, toggleLabel);
 document.body.prepend(header);
 
 const toolbar = el('div', 'ma-toolbar');
@@ -155,6 +168,12 @@ function updateHeader(): void {
   if (unanchored) {
     count += ` · ${unanchored} not found`;
   }
+  const diff = current.diff;
+  if (diff && 'unavailable' in diff) {
+    count += ` · ${diff.unavailable}`;
+  } else if (diff && !diff.view.changed.length && !diff.view.removed.length) {
+    count += ` · No changes since ${diff.base}`;
+  }
   countEl.textContent = count;
   countEl.title = unanchored ? 'Some highlights no longer match the document text' : '';
   toggle.checked = current.writeToFile;
@@ -171,8 +190,15 @@ interface TextIndex {
   starts: number[];
 }
 
+/** Text nodes of the document; removed diff blocks are not part of it. */
+function textWalker(): TreeWalker {
+  return document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (n.parentElement?.closest('.ma-diff-del') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+  });
+}
+
 function textIndex(): TextIndex {
-  const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+  const walker = textWalker();
   const nodes: Text[] = [];
   const starts: number[] = [];
   let text = '';
@@ -208,7 +234,7 @@ function lineOf(node: Node | null | undefined): number | undefined {
 const BLOCK_CONTAINERS = new Set(['MAIN', 'UL', 'OL', 'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'BLOCKQUOTE', 'DIV', 'SECTION', 'DL']);
 
 function wrap(start: number, end: number, h: { id: string; color: string; note?: string }): void {
-  const walker = document.createTreeWalker(content, NodeFilter.SHOW_TEXT);
+  const walker = textWalker();
   const targets: { node: Text; a: number; b: number }[] = [];
   let pos = 0;
   for (let n = walker.nextNode() as Text | null; n && pos < end; n = walker.nextNode() as Text | null) {
@@ -274,12 +300,183 @@ function paintStored(highlights: StoredHighlight[]): void {
   }
 }
 
+// ─── Diff against git ───────────────────────────────────────────────────────
+
+/** Source line of a top-level block (fences carry it on their inner <code>). */
+function blockLine(block: Element): number | undefined {
+  const line = (block as HTMLElement).dataset.line ?? block.querySelector<HTMLElement>('[data-line]')?.dataset.line;
+  return line === undefined ? undefined : Number(line);
+}
+
+/** Mark changed blocks and insert the removed ones. Runs after highlights are painted. */
+function applyDiff(diff: RenderMessage['diff']): void {
+  document.body.classList.toggle('ma-diffing', !!diff);
+  diffButton.setAttribute('aria-pressed', String(!!diff));
+  if (!diff || 'unavailable' in diff) {
+    return;
+  }
+  const blocks: { el: Element; line: number }[] = [];
+  for (const child of content.children) {
+    const line = blockLine(child);
+    if (line !== undefined) {
+      blocks.push({ el: child, line });
+    }
+  }
+  const changed = new Set(diff.view.changed);
+  for (const b of blocks) {
+    if (changed.has(b.line)) {
+      b.el.classList.add('ma-diff-add');
+    }
+  }
+  for (const removed of diff.view.removed) {
+    const chunk = el('div', 'ma-diff-del');
+    chunk.title = `Removed since ${diff.base}`;
+    chunk.innerHTML = removed.html;
+    // Old line numbers and heading ids would confuse scroll sync and links.
+    for (const node of chunk.querySelectorAll('[data-line], [id]')) {
+      node.removeAttribute('data-line');
+      node.removeAttribute('id');
+    }
+    const next = removed.before === undefined ? undefined : blocks.find((b) => b.line >= removed.before!);
+    content.insertBefore(chunk, next?.el ?? null);
+  }
+}
+
+// ─── Scrollbar ──────────────────────────────────────────────────────────────
+
+// The page draws its own scrollbar, like VS Code's editor, so diff changes and
+// highlights can be marked on it (an overview ruler). Native scrollbars can't be
+// painted reliably across VS Code/Cursor versions.
+const ruler = el('div', 'ma-ruler');
+ruler.setAttribute('aria-hidden', 'true');
+const rulerMarks = el('div', 'ma-ruler-marks');
+const thumb = el('div', 'ma-ruler-thumb');
+ruler.append(rulerMarks, thumb);
+document.body.appendChild(ruler);
+
+let rulerFrame = 0;
+let thumbFrame = 0;
+
+function scheduleRuler(): void {
+  cancelAnimationFrame(rulerFrame);
+  rulerFrame = requestAnimationFrame(() => {
+    updateMarks();
+    updateThumb();
+  });
+}
+
+function scheduleThumb(): void {
+  cancelAnimationFrame(thumbFrame);
+  thumbFrame = requestAnimationFrame(updateThumb);
+}
+
+/** Thumb height and travel, in px. */
+function thumbMetrics(): { height: number; travel: number; scrollable: number } {
+  const view = window.innerHeight;
+  const total = document.documentElement.scrollHeight;
+  const height = Math.max(20, Math.round((view / total) * view));
+  return { height, travel: view - height, scrollable: total - view };
+}
+
+function updateThumb(): void {
+  const { height, travel, scrollable } = thumbMetrics();
+  ruler.hidden = scrollable <= 0;
+  thumb.style.height = `${height}px`;
+  thumb.style.transform = `translateY(${scrollable > 0 ? (window.scrollY / scrollable) * travel : 0}px)`;
+}
+
+interface RulerMark {
+  top: number;
+  bottom: number;
+  className: string;
+  color?: string;
+}
+
+function updateMarks(): void {
+  const diff: RulerMark[] = [];
+  for (const block of content.querySelectorAll<HTMLElement>(':scope > .ma-diff-add, :scope > .ma-diff-del')) {
+    const rect = block.getBoundingClientRect();
+    diff.push({ top: rect.top, bottom: rect.bottom, className: block.classList.contains('ma-diff-add') ? 'ma-add' : 'ma-del' });
+  }
+
+  // One mark per highlight, spanning all of its pieces.
+  const byId = new Map<string, RulerMark>();
+  for (const span of content.querySelectorAll<HTMLElement>('.ma-hl')) {
+    const rect = span.getBoundingClientRect();
+    const id = span.dataset.id ?? '';
+    const mark = byId.get(id);
+    if (mark) {
+      mark.top = Math.min(mark.top, rect.top);
+      mark.bottom = Math.max(mark.bottom, rect.bottom);
+    } else {
+      byId.set(id, { top: rect.top, bottom: rect.bottom, className: 'ma-hl-mark', color: span.dataset.color });
+    }
+  }
+
+  // Like the editor's overview ruler: git changes on the left, highlights on the right.
+  const lanes = diff.length && byId.size;
+  const scale = window.innerHeight / document.documentElement.scrollHeight;
+  const nodes: HTMLElement[] = [];
+  for (const [marks, lane] of [
+    [diff, 'ma-left'],
+    [[...byId.values()], 'ma-right'],
+  ] as const) {
+    for (const mark of marks) {
+      const node = el('div', `ma-ruler-mark ${mark.className}${lanes ? ` ${lane}` : ''}`);
+      const top = Math.round((mark.top + window.scrollY) * scale);
+      node.style.top = `${top}px`;
+      // Keep small marks visible.
+      node.style.height = `${Math.max(3, Math.round((mark.bottom + window.scrollY) * scale) - top)}px`;
+      if (mark.color) {
+        node.dataset.color = mark.color;
+      }
+      nodes.push(node);
+    }
+  }
+  rulerMarks.replaceChildren(...nodes);
+}
+
+// Drag the thumb, or click the track to jump there.
+ruler.addEventListener('pointerdown', (e) => {
+  if (e.button !== 0) {
+    return;
+  }
+  e.preventDefault();
+  e.stopPropagation();
+  const { height, travel, scrollable } = thumbMetrics();
+  if (e.target !== thumb) {
+    const y = e.clientY - height / 2;
+    window.scrollTo({ top: (Math.max(0, Math.min(y, travel)) / travel) * scrollable });
+  }
+  const startY = e.clientY;
+  const startScroll = window.scrollY;
+  ruler.setPointerCapture(e.pointerId);
+  ruler.classList.add('ma-dragging');
+  const move = (m: PointerEvent) => window.scrollTo({ top: startScroll + ((m.clientY - startY) / travel) * scrollable });
+  const end = () => {
+    ruler.classList.remove('ma-dragging');
+    ruler.removeEventListener('pointermove', move);
+    ruler.removeEventListener('pointerup', end);
+    ruler.removeEventListener('pointercancel', end);
+  };
+  ruler.addEventListener('pointermove', move);
+  ruler.addEventListener('pointerup', end);
+  ruler.addEventListener('pointercancel', end);
+});
+
+window.addEventListener('scroll', scheduleThumb, { passive: true });
+window.addEventListener('resize', scheduleRuler);
+// Images and fonts loading change block positions.
+new ResizeObserver(scheduleRuler).observe(content);
+
 function render(message: RenderMessage): void {
   current = message;
   updatePalette(message.palette);
   content.innerHTML = message.html;
   decorateFileMarks();
   paintStored(message.highlights);
+  applyDiff(message.diff);
+  scheduleRuler();
   updateHeader();
   if (firstRender) {
     firstRender = false;
@@ -306,11 +503,22 @@ function firstHighlight(id: string): HTMLElement | null {
 
 // ─── Selection → new highlight ──────────────────────────────────────────────
 
+/** Offset of a DOM position in the text of `textIndex()`. */
 function offsetOf(container: Node, offset: number): number {
-  const range = document.createRange();
-  range.setStart(content, 0);
-  range.setEnd(container, offset);
-  return range.toString().length;
+  const point = document.createRange();
+  point.setStart(container, offset);
+  const walker = textWalker();
+  let total = 0;
+  for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
+    if (n === container) {
+      return total + offset;
+    }
+    if (point.comparePoint(n, n.length) > 0) {
+      break;
+    }
+    total += n.length;
+  }
+  return total;
 }
 
 function onSelectionChange(): void {
@@ -563,4 +771,4 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
   }
 });
 
-post({ type: 'ready' });
+post({ type: 'ready', diff: viewState.diff });

@@ -19,6 +19,14 @@ export interface StoredHighlight {
   createdAt: number;
 }
 
+/** A rendered diff of the document against a git revision. */
+export interface DiffView {
+  /** Start lines of the top-level blocks that are new or changed. */
+  changed: number[];
+  /** Rendered old blocks, each to be shown before the block starting at `before` (or at the end). */
+  removed: { before?: number; html: string }[];
+}
+
 export interface RenderMessage {
   type: 'render';
   html: string;
@@ -27,6 +35,8 @@ export interface RenderMessage {
   palette: PaletteColor[];
   writeToFile: boolean;
   theme: PreviewTheme;
+  /** Present while the diff view is on: the diff, or why there is none. */
+  diff?: { view: DiffView; base: string } | { unavailable: string };
 }
 
 export type ToWebview =
@@ -35,7 +45,8 @@ export type ToWebview =
   | { type: 'focusHighlight'; id: string };
 
 export type FromWebview =
-  | { type: 'ready' }
+  | { type: 'ready'; diff?: boolean }
+  | { type: 'setDiff'; value: boolean }
   | { type: 'create'; quote: TextQuote; line?: number; color: string }
   | { type: 'update'; id: string; color?: string; note?: string }
   | { type: 'delete'; id: string }
@@ -47,4 +58,5 @@ export type FromWebview =
 export interface WebviewState {
   uri: string;
   scrollY?: number;
+  diff?: boolean;
 }
