@@ -1,6 +1,7 @@
 import * as assert from 'assert';
 import { findQuote, quoteFromRange, strip, TextQuote } from '../../src/core/anchor';
 import { blockDiff, diffLines } from '../../src/core/diff';
+import { wordDiff } from '../../src/core/words';
 import { blankFrontMatter, buildTextMap, createMarkdown, renderMarkdown } from '../../src/core/markdown';
 import {
   applyEdits,
@@ -339,5 +340,19 @@ suite('diff', () => {
     const fresh = blockDiff(md, 'Text.\n', '| B |\n| - |\n| 2 |\n');
     assert.deepStrictEqual([fresh.changed, fresh.changedRows], [[0], []]);
     assert.strictEqual(fresh.removed[0].table, undefined);
+  });
+
+  test('word diff marks the words that changed within a block', () => {
+    const before = 'not started; T6.1 has no dependencies';
+    const after = 'code complete; T6.1 has no dependencies and mailpit';
+    const words = wordDiff(before, after)!;
+    const slices = (text: string, ranges: [number, number][]) => ranges.map(([a, b]) => text.slice(a, b));
+    assert.deepStrictEqual(slices(before, words.removed), ['not started']);
+    assert.deepStrictEqual(slices(after, words.added), ['code complete', 'and mailpit']);
+  });
+
+  test('word diff gives up on unrelated text', () => {
+    assert.strictEqual(wordDiff('An entirely different sentence.', 'Nothing alike here at all!'), undefined);
+    assert.deepStrictEqual(wordDiff('same', 'same'), { removed: [], added: [] });
   });
 });

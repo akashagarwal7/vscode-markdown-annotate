@@ -3,6 +3,7 @@
  * text selections into highlight requests for the extension.
  */
 import { findQuote, quoteFromRange, strip, TextQuote } from '../core/anchor';
+import { Range, wordDiff } from '../core/words';
 import type { FromWebview, PaletteColor, PreviewTheme, RenderMessage, StoredHighlight, ToWebview, WebviewState } from '../protocol';
 
 interface VsCodeApi {
@@ -343,7 +344,8 @@ function applyDiff(diff: RenderMessage['diff']): void {
     if (removed.table !== undefined) {
       const table = blocks.find((b) => b.line === removed.table && b.el.tagName === 'TABLE')?.el;
       if (table) {
-        insertRows(table, rowOf(table, removed.before ?? -1), removed.html, diff.base);
+        const next = rowOf(table, removed.before ?? -1);
+        markWords(insertRows(table, next, removed.html, diff.base), next);
       }
       continue;
     }
@@ -353,6 +355,58 @@ function applyDiff(diff: RenderMessage['diff']): void {
     clearSourceAttributes(chunk);
     const next = removed.before === undefined ? undefined : blocks.find((b) => b.line >= removed.before!);
     content.insertBefore(chunk, next?.el ?? null);
+    markWords([...chunk.children], next?.el);
+  }
+}
+
+/**
+ * Pair removed blocks (or rows) with the changed ones that follow them, in
+ * order, and mark the words that differ within each pair.
+ */
+function markWords(removed: Element[], next: Element | undefined): void {
+  for (const old of removed) {
+    if (!next?.classList.contains('ma-diff-add')) {
+      return;
+    }
+    const words = wordDiff(old.textContent ?? '', next.textContent ?? '');
+    if (words) {
+      wrapRanges(old, words.removed, 'ma-diff-word');
+      wrapRanges(next, words.added, 'ma-diff-word');
+    }
+    next = next.nextElementSibling ?? undefined;
+  }
+}
+
+/** Wrap character ranges of `root`'s text (as in `textContent`) in spans. */
+function wrapRanges(root: Element, ranges: Range[], className: string): void {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const targets: { node: Text; a: number; b: number }[] = [];
+  let pos = 0;
+  let r = 0;
+  for (let n = walker.nextNode() as Text | null; n && r < ranges.length; n = walker.nextNode() as Text | null) {
+    const end = pos + n.data.length;
+    for (let k = r; k < ranges.length && ranges[k][0] < end; k++) {
+      const a = Math.max(ranges[k][0], pos);
+      const b = Math.min(ranges[k][1], end);
+      if (a < b) {
+        targets.push({ node: n, a: a - pos, b: b - pos });
+      }
+    }
+    while (r < ranges.length && ranges[r][1] <= end) {
+      r++;
+    }
+    pos = end;
+  }
+  // Back to front, so splitting a node leaves the earlier offsets in it valid.
+  for (const { node, a, b } of targets.reverse()) {
+    if (!node.data.slice(a, b).trim() && BLOCK_CONTAINERS.has(node.parentElement?.tagName ?? '')) {
+      continue;
+    }
+    const piece = node.splitText(a);
+    piece.splitText(b - a);
+    const span = el('span', className);
+    piece.replaceWith(span);
+    span.append(piece);
   }
 }
 
@@ -365,7 +419,7 @@ function clearSourceAttributes(root: Element): void {
 }
 
 /** Insert removed table rows before `next`, or at the end of the table's body. */
-function insertRows(table: Element, next: Element | undefined, html: string, base: string): void {
+function insertRows(table: Element, next: Element | undefined, html: string, base: string): Element[] {
   const rows = document.createElement('tbody');
   rows.innerHTML = html;
   clearSourceAttributes(rows);
@@ -376,11 +430,13 @@ function insertRows(table: Element, next: Element | undefined, html: string, bas
       parent = table.appendChild(document.createElement('tbody'));
     }
   }
-  for (const row of [...rows.children]) {
+  const inserted = [...rows.children];
+  for (const row of inserted) {
     row.classList.add('ma-diff-del');
     (row as HTMLElement).title = `Removed since ${base}`;
     parent.insertBefore(row, next ?? null);
   }
+  return inserted;
 }
 
 // ─── Scrollbar ──────────────────────────────────────────────────────────────

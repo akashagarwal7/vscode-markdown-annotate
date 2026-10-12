@@ -495,6 +495,17 @@ body[data-effective-theme='dark'] {
   box-shadow: inset 3px 0 var(--ma-diff-del);
 }
 
+/* Words that changed within a replaced block, like the editor's inline diff. */
+.ma-diff-add .ma-diff-word {
+  background-color: color-mix(in srgb, var(--ma-diff-add) 35%, transparent);
+  border-radius: 2px;
+}
+
+.ma-diff-del .ma-diff-word {
+  background-color: color-mix(in srgb, var(--ma-diff-del) 35%, transparent);
+  border-radius: 2px;
+}
+
 .ma-diff-del :is(p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote) {
   text-decoration: line-through;
   text-decoration-color: color-mix(in srgb, var(--ma-diff-del) 60%, transparent);
