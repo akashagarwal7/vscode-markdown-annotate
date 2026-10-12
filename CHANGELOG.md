@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.0
+
+- Scrolling the preview scrolls the editor too. The **Sync scroll** checkbox in the preview header turns syncing on and off in both directions (on by default).
+- Scroll sync keeps your place within long paragraphs instead of jumping to their first line.
+
 ## 0.3.0
 
 - **Git diff** marks tables row by row: editing one row no longer marks the whole table, and removed rows show in place.
