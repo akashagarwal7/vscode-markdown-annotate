@@ -54,6 +54,7 @@ function send() {
       highlights: harness.stored,
       palette,
       writeToFile: harness.writeToFile,
+      scrollSync: true,
       theme: harness.theme,
       diff: harness.diff ? { base: 'HEAD', view: blockDiff(md, harness.base, harness.source) } : undefined,
     },
@@ -129,7 +130,12 @@ using several colours, and attach a note to any highlight.
 
 ## Git diff
 
-With **Git diff** on, the preview shows what changed since the last commit: new and edited text gets a green bar.
+With **Git diff** on, the preview shows what changed since the last commit: edited text gets a green bar, and the words that changed a stronger tint.
+
+| Change | Shown as |
+|--------|----------|
+| Edited paragraph | the old and new text, words marked |
+| Edited table row | just that row |
 
 ## On the scrollbar
 
@@ -144,10 +150,12 @@ Notes are shown on hover, listed in the sidebar, and included when you export hi
 Write highlights into the file to share them through git; other renderers show them as \`<mark>\` tags.
 `;
   // The committed version, so Git diff has something to show.
-  harness.base = harness.source.replace(
-    'the preview shows what changed since the last commit: new and edited text gets a green bar.',
-    'changes since the last commit are shown in the preview.',
-  );
+  harness.base = harness.source
+    .replace(
+      'edited text gets a green bar, and the words that changed a stronger tint.',
+      'new and edited text gets a green bar.',
+    )
+    .replace('| just that row |', '| the whole table |');
   harness.stored.push({
     id: 'demo03',
     color: 'pink',
