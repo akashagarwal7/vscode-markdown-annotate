@@ -54,7 +54,7 @@ export type ToWebview =
   | { type: 'focusHighlight'; id: string };
 
 export type FromWebview =
-  | { type: 'ready'; diff?: boolean }
+  | { type: 'ready'; diff?: boolean; scrollSync?: boolean }
   | { type: 'setDiff'; value: boolean }
   | { type: 'create'; quote: TextQuote; line?: number; color: string }
   | { type: 'update'; id: string; color?: string; note?: string }
@@ -75,4 +75,6 @@ export interface WebviewState {
   diff?: boolean;
   /** For a new duplicate preview: the source line to open at. */
   line?: number;
+  /** This preview's Sync scroll; unset until chosen, then the `scrollSync` setting applies. */
+  scrollSync?: boolean;
 }

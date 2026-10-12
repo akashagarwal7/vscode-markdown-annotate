@@ -26,6 +26,9 @@ suite('Markdown Annotate', () => {
     const copy = await api.previews.duplicate(first);
     assert.notStrictEqual(copy, first);
     assert.strictEqual(copy.uri.toString(), doc.uri.toString());
+    // Sync scroll is per preview, and the second one starts without it.
+    assert.strictEqual(first.syncsScroll, true);
+    assert.strictEqual(copy.syncsScroll, false);
     // From either preview, the other one is reused.
     assert.strictEqual(await api.previews.duplicate(first), copy);
     assert.strictEqual(await api.previews.duplicate(copy), first);

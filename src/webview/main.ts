@@ -61,9 +61,14 @@ toggleLabel.title = 'When on, new highlights are written into the Markdown sourc
 const syncLabel = el('label', 'ma-toggle');
 const syncToggle = el('input');
 syncToggle.type = 'checkbox';
-syncToggle.addEventListener('change', () => post({ type: 'setScrollSync', value: syncToggle.checked }));
+syncToggle.addEventListener('change', () => {
+  // Per preview, so it is kept with the preview's state.
+  viewState = { ...viewState, scrollSync: syncToggle.checked };
+  vscode.setState(viewState);
+  post({ type: 'setScrollSync', value: syncToggle.checked });
+});
 syncLabel.append(syncToggle, document.createTextNode(' Sync scroll'));
-syncLabel.title = 'Keep the preview and the editor scrolled to the same place, in both directions';
+syncLabel.title = 'Keep this preview and the editor scrolled to the same place, in both directions';
 
 // Theme: follow VS Code, or force light/dark for reading.
 const themes: { value: PreviewTheme; label: string; title: string }[] = [
@@ -1071,4 +1076,4 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
   }
 });
 
-post({ type: 'ready', diff: viewState.diff });
+post({ type: 'ready', diff: viewState.diff, scrollSync: viewState.scrollSync });

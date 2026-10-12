@@ -67,12 +67,9 @@ export function showInEditor(): boolean {
   return config().get<boolean>('showInEditor', true);
 }
 
+/** Whether a newly opened preview syncs its scrolling with the editor; each preview then has its own toggle. */
 export function scrollSync(): boolean {
   return config().get<boolean>('scrollSync', true);
-}
-
-export async function setScrollSync(value: boolean): Promise<void> {
-  await config().update('scrollSync', value, vscode.ConfigurationTarget.Global);
 }
 
 /** Inline CSS written into `<mark>` tags so other renderers show the colour. */

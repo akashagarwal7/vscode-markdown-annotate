@@ -27,7 +27,7 @@ Click a highlight to open its popover:
 
 `Cmd/Ctrl+click` anywhere in the preview also jumps to that line in the source.
 
-To read two parts of a long file side by side, run **Duplicate Annotatable Preview** (the split icon in a preview's title bar). A second preview of the file opens beside the first, at the same place. Up to two previews are open at a time. With two open, **Duplicate** in either one moves the other to the same place, and opening a third file swaps out the preview you looked at least recently. With **Sync scroll** on, the editor follows whichever preview you last scrolled or focused, and only that one follows the editor.
+To read two parts of a long file side by side, run **Duplicate Annotatable Preview** (the split icon in a preview's title bar). A second preview of the file opens beside the first, at the same place. Up to two previews are open at a time. With two open, **Duplicate** in either one moves the other to the same place, and opening a third file swaps out the preview you looked at least recently. Each preview has its own **Sync scroll** checkbox. The second preview starts with it off, so it stays where you put it while the first one follows the editor.
 
 `Cmd+Alt+click` (`Ctrl+Alt+click` on Windows and Linux) on a link opens it in the other preview, as the chord opens to the side in the editor. The other preview goes to the heading the link points to and switches files if it needs to, and the focus stays where you clicked. If only one preview is open, a second one opens beside it. Links to other kinds of file open in an editor beside the preview.
 
@@ -82,7 +82,7 @@ When a selection crosses Markdown syntax (say it starts inside `**bold**` and en
 | `markdownAnnotate.colors` | yellow, green, blue, pink, orange, purple | The palette, as `{ "name", "color" }` items. `name` is saved with each highlight |
 | `markdownAnnotate.fileMarks.inlineStyle` | `true` | Add `style="background-color:…"` to written `<mark>` tags so other renderers show the colour |
 | `markdownAnnotate.showInEditor` | `true` | Tint highlights in the source editor |
-| `markdownAnnotate.scrollSync` | `true` | Keep the preview and the editor scrolled together, both ways (also **Sync scroll** in the preview header) |
+| `markdownAnnotate.scrollSync` | `true` | Whether a newly opened preview and the editor scroll together, both ways. Each preview can change it with **Sync scroll** in its header |
 
 ## How highlights are anchored
 

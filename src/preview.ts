@@ -2,7 +2,7 @@
 import * as vscode from 'vscode';
 import { blockDiff } from './core/diff';
 import { headingLine, renderMarkdown } from './core/markdown';
-import { palette, previewTheme, scrollSync, setPreviewTheme, setScrollSync, setWriteToFile, writeToFile } from './config';
+import { palette, previewTheme, scrollSync, setPreviewTheme, setWriteToFile, writeToFile } from './config';
 import { BaseResult, GitBase } from './git';
 import type { HighlightService } from './highlights';
 import type { FromWebview, RenderMessage, ToWebview, WebviewState } from './protocol';
@@ -57,12 +57,15 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
       vscode.window.onDidChangeTextEditorVisibleRanges((e) => {
         const key = e.textEditor.document.uri.toString();
         if (
-          scrollSync() &&
           e.textEditor === vscode.window.activeTextEditor &&
           e.visibleRanges.length &&
           Date.now() >= (this.quietUntil.get(key) ?? 0)
         ) {
-          this.get(e.textEditor.document.uri)?.post({ type: 'scrollToLine', line: e.visibleRanges[0].start.line });
+          for (const p of this.previews) {
+            if (p.syncsScroll && p.uri.toString() === key) {
+              p.post({ type: 'scrollToLine', line: e.visibleRanges[0].start.line });
+            }
+          }
         }
       }),
     );
@@ -104,10 +107,11 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
     const other = this.recent.find((p) => p !== source);
     if (!other) {
       const diff = uri.toString() === source.uri.toString() ? source.showsDiff : undefined;
-      return this.create(uri, vscode.ViewColumn.Beside, true, { line, diff });
+      // It shows another place, so it doesn't follow the editor until asked to.
+      return this.create(uri, vscode.ViewColumn.Beside, true, { line, diff, scrollSync: false });
     }
     if (other.uri.toString() !== uri.toString()) {
-      return this.replace(other, uri, true, { line, diff: other.showsDiff });
+      return this.replace(other, uri, true, { line, diff: other.showsDiff, scrollSync: other.syncsScroll });
     }
     other.panel.reveal(undefined, true);
     if (line !== undefined) {
@@ -138,7 +142,7 @@ export class PreviewManager implements vscode.WebviewPanelSerializer, vscode.Dis
     const key = preview.uri.toString();
     this.leads.set(key, preview);
     const editor = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === key);
-    if (!scrollSync() || !editor) {
+    if (!preview.syncsScroll || !editor) {
       return;
     }
     const top = new vscode.Position(Math.min(line, editor.document.lineCount - 1), 0);
@@ -232,6 +236,12 @@ export class Preview {
   private ready = false;
   /** Whether the webview shows the diff against HEAD. */
   private diff = false;
+  /** Whether this preview and the editor scroll together. */
+  private sync: boolean;
+
+  get syncsScroll(): boolean {
+    return this.sync;
+  }
 
   get showsDiff(): boolean {
     return this.diff;
@@ -254,6 +264,7 @@ export class Preview {
       openBeside(uri: vscode.Uri, line?: number): Promise<unknown>;
     },
   ) {
+    this.sync = start?.scrollSync ?? scrollSync();
     panel.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'preview-icon.svg');
     panel.webview.onDidReceiveMessage((m: FromWebview) => void this.handle(m));
   }
@@ -319,7 +330,7 @@ export class Preview {
       highlights: await this.service.store.get(this.uri),
       palette: palette(),
       writeToFile: writeToFile(this.uri),
-      scrollSync: scrollSync(),
+      scrollSync: this.sync,
       theme: previewTheme(),
       diff,
     });
@@ -355,6 +366,7 @@ export class Preview {
       case 'ready':
         this.ready = true;
         this.diff = !!message.diff;
+        this.sync = message.scrollSync ?? scrollSync();
         await this.render();
         return;
       case 'setDiff':
@@ -374,7 +386,7 @@ export class Preview {
         await setWriteToFile(message.value);
         return;
       case 'setScrollSync':
-        await setScrollSync(message.value);
+        this.sync = message.value;
         return;
       case 'scrolled':
         this.topLine = message.line;
