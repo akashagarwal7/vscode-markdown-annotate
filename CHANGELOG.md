@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0
+
+- **← →** buttons in the preview header go back and forward through jumps within the preview: links to headings, highlights picked in the sidebar, and clicks on the scrollbar. Also `Cmd/Ctrl+[` and `]`, `Alt+←` and `→`, and the mouse's back and forward buttons.
+
 ## 0.4.0
 
 - Scrolling the preview scrolls the editor too. The **Sync scroll** checkbox in the preview header turns syncing on and off in both directions (on by default).
