@@ -171,7 +171,7 @@ function updateHeader(): void {
     count += ` · ${unanchored} not found`;
   }
   const diff = current.diff;
-  if (diff && 'view' in diff && !diff.view.changed.length && !diff.view.removed.length) {
+  if (diff && 'view' in diff && !diff.view.changed.length && !diff.view.changedRows.length && !diff.view.removed.length) {
     count += ` · No changes since ${diff.base}`;
   }
   // On by default, so a file outside git shouldn't nag: explain on the button instead.
@@ -332,17 +332,54 @@ function applyDiff(diff: RenderMessage['diff']): void {
       b.el.classList.add('ma-diff-add');
     }
   }
+  const rowOf = (table: Element | undefined, line: number) =>
+    table?.querySelector(`:scope > * > tr[data-line="${line}"]`) ?? undefined;
+  for (const line of diff.view.changedRows) {
+    for (const b of blocks) {
+      rowOf(b.el.tagName === 'TABLE' ? b.el : undefined, line)?.classList.add('ma-diff-add');
+    }
+  }
   for (const removed of diff.view.removed) {
+    if (removed.table !== undefined) {
+      const table = blocks.find((b) => b.line === removed.table && b.el.tagName === 'TABLE')?.el;
+      if (table) {
+        insertRows(table, rowOf(table, removed.before ?? -1), removed.html, diff.base);
+      }
+      continue;
+    }
     const chunk = el('div', 'ma-diff-del');
     chunk.title = `Removed since ${diff.base}`;
     chunk.innerHTML = removed.html;
-    // Old line numbers and heading ids would confuse scroll sync and links.
-    for (const node of chunk.querySelectorAll('[data-line], [id]')) {
-      node.removeAttribute('data-line');
-      node.removeAttribute('id');
-    }
+    clearSourceAttributes(chunk);
     const next = removed.before === undefined ? undefined : blocks.find((b) => b.line >= removed.before!);
     content.insertBefore(chunk, next?.el ?? null);
+  }
+}
+
+/** Old line numbers and heading ids would confuse scroll sync and links. */
+function clearSourceAttributes(root: Element): void {
+  for (const node of root.querySelectorAll('[data-line], [id]')) {
+    node.removeAttribute('data-line');
+    node.removeAttribute('id');
+  }
+}
+
+/** Insert removed table rows before `next`, or at the end of the table's body. */
+function insertRows(table: Element, next: Element | undefined, html: string, base: string): void {
+  const rows = document.createElement('tbody');
+  rows.innerHTML = html;
+  clearSourceAttributes(rows);
+  let parent: Element | null | undefined = next?.parentElement;
+  if (!parent) {
+    parent = table.querySelector(':scope > tbody:last-of-type');
+    if (!parent) {
+      parent = table.appendChild(document.createElement('tbody'));
+    }
+  }
+  for (const row of [...rows.children]) {
+    row.classList.add('ma-diff-del');
+    (row as HTMLElement).title = `Removed since ${base}`;
+    parent.insertBefore(row, next ?? null);
   }
 }
 
@@ -398,7 +435,9 @@ interface RulerMark {
 
 function updateMarks(): void {
   const diff: RulerMark[] = [];
-  for (const block of content.querySelectorAll<HTMLElement>(':scope > .ma-diff-add, :scope > .ma-diff-del')) {
+  for (const block of content.querySelectorAll<HTMLElement>(
+    ':scope > :is(.ma-diff-add, .ma-diff-del), :scope > table > * > tr:is(.ma-diff-add, .ma-diff-del)',
+  )) {
     const rect = block.getBoundingClientRect();
     diff.push({ top: rect.top, bottom: rect.bottom, className: block.classList.contains('ma-diff-add') ? 'ma-add' : 'ma-del' });
   }

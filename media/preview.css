@@ -477,6 +477,24 @@ body[data-effective-theme='dark'] {
   background: var(--ma-diff-del);
 }
 
+/* Rows of a table diffed by row: tint the cells, and bar the first one. */
+.markdown-body > table tr.ma-diff-add > * {
+  background-color: color-mix(in srgb, var(--ma-diff-add) 12%, transparent);
+}
+
+.markdown-body > table tr.ma-diff-del > * {
+  background-color: color-mix(in srgb, var(--ma-diff-del) 12%, transparent);
+  opacity: 0.85;
+}
+
+.markdown-body > table tr.ma-diff-add > :first-child {
+  box-shadow: inset 3px 0 var(--ma-diff-add);
+}
+
+.markdown-body > table tr.ma-diff-del > :first-child {
+  box-shadow: inset 3px 0 var(--ma-diff-del);
+}
+
 .ma-diff-del :is(p, li, h1, h2, h3, h4, h5, h6, td, th, blockquote) {
   text-decoration: line-through;
   text-decoration-color: color-mix(in srgb, var(--ma-diff-del) 60%, transparent);

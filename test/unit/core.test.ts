@@ -314,4 +314,30 @@ suite('diff', () => {
     const view = blockDiff(md, 'See [x][1].\n\n[1]: https://example.com\n', '[1]: https://example.com\n');
     assert.match(view.removed[0].html, /href="https:\/\/example.com"/);
   });
+
+  test('block diff diffs a kept table by row', () => {
+    const table = (row2: string) => `Intro.\n\n| A | B |\n| - | - |\n| 1 | one |\n| 2 | ${row2} |\n| 3 | three |\n`;
+    const view = blockDiff(md, table('two'), table('TWO'));
+    assert.deepStrictEqual(view.changed, []);
+    assert.deepStrictEqual(view.changedRows, [5]);
+    assert.strictEqual(view.removed.length, 1);
+    assert.deepStrictEqual([view.removed[0].table, view.removed[0].before], [2, 5]);
+    assert.match(view.removed[0].html, /^<tr[^>]*>[\s\S]*two[\s\S]*<\/tr>\s*$/);
+  });
+
+  test('block diff places a removed last row at the end of its table', () => {
+    const base = '| A |\n| - |\n| 1 |\n| 2 |\n';
+    const view = blockDiff(md, base, '| A |\n| - |\n| 1 |\n');
+    assert.deepStrictEqual([view.changed, view.changedRows], [[], []]);
+    assert.deepStrictEqual([view.removed[0].table, view.removed[0].before], [0, undefined]);
+  });
+
+  test('block diff marks a new table as one block', () => {
+    const view = blockDiff(md, '| A |\n| - |\n| 1 |\n', '| B |\n| - |\n| 2 |\n');
+    // The unchanged delimiter line keeps a rewritten table paired, so its rows are marked.
+    assert.deepStrictEqual(view.changedRows, [0, 2]);
+    const fresh = blockDiff(md, 'Text.\n', '| B |\n| - |\n| 2 |\n');
+    assert.deepStrictEqual([fresh.changed, fresh.changedRows], [[0], []]);
+    assert.strictEqual(fresh.removed[0].table, undefined);
+  });
 });

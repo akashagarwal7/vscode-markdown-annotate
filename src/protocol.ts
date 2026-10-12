@@ -23,8 +23,14 @@ export interface StoredHighlight {
 export interface DiffView {
   /** Start lines of the top-level blocks that are new or changed. */
   changed: number[];
-  /** Rendered old blocks, each to be shown before the block starting at `before` (or at the end). */
-  removed: { before?: number; html: string }[];
+  /** Start lines of the new or changed rows of tables diffed by row. */
+  changedRows: number[];
+  /**
+   * Rendered old blocks, each to be shown before the block starting at `before`
+   * (or at the end). With `table`, they are `<tr>`s of the table starting at
+   * that line, and `before` is the start line of one of its rows.
+   */
+  removed: { before?: number; table?: number; html: string }[];
 }
 
 export interface RenderMessage {
