@@ -2,7 +2,7 @@
   "name": "vscode-markdown-annotate",
   "displayName": "Markdown Annotate",
   "description": "Highlight Markdown previews in multiple colours, add notes, and optionally write the highlights into the Markdown file as <mark> tags.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "author": {
     "name": "Akash Agarwal",
     "email": "agarwal.akash333@gmail.com"

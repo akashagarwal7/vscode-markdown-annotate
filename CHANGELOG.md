@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.6.0
+
+- **Duplicate Annotatable Preview** (the split icon in a preview's title bar) opens a second preview of the file beside the first, at the same place, to read two parts of a long file side by side.
+- `Cmd+Alt+click` (`Ctrl+Alt+click`) on a link shows it in the other preview, at the heading it points to, switching files if needed. The focus stays where you clicked.
+- Up to two previews are open at a time. Opening a preview for a third file replaces the one you looked at least recently.
+- With **Sync scroll** on, the editor follows the preview you last scrolled or focused.
+
 ## 0.5.0
 
 - **← →** buttons in the preview header go back and forward through jumps within the preview: links to headings, highlights picked in the sidebar, and clicks on the scrollbar. Also `Cmd/Ctrl+[` and `]`, `Alt+←` and `→`, and the mouse's back and forward buttons.
