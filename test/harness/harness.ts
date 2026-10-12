@@ -126,13 +126,41 @@ using several colours, and attach a note to any highlight.
 
 > Select any text to pick a colour; click a highlight to recolour it,
 > add a note or delete it.
+
+## Git diff
+
+With **Git diff** on, the preview shows what changed since the last commit: new and edited text gets a green bar.
+
+## On the scrollbar
+
+Changes and highlights are also marked on the scrollbar, in their colours, so a long document shows at a glance where your notes are.
+
+## Keep reading
+
+Highlights stay anchored to their text as the document changes around them, and are re-found by their surrounding words when lines move.
+
+Notes are shown on hover, listed in the sidebar, and included when you export highlights as Markdown.
+
+Write highlights into the file to share them through git; other renderers show them as \`<mark>\` tags.
 `;
+  // The committed version, so Git diff has something to show.
+  harness.base = harness.source.replace(
+    'the preview shows what changed since the last commit: new and edited text gets a green bar.',
+    'changes since the last commit are shown in the preview.',
+  );
   harness.stored.push({
     id: 'demo03',
     color: 'pink',
     quote: { exact: 'attach a note', prefix: 'and ', suffix: ' to any' },
     createdAt: 1,
     note: 'Notes appear on hover',
+  });
+  harness.stored.push({
+    id: 'demo04',
+    color: 'blue',
+    quote: { exact: 'export highlights as Markdown', prefix: 'when you ', suffix: '.' },
+    createdAt: 2,
+    note: 'Grouped by colour, with notes and line numbers',
   });
   window.addEventListener('message', function once(e) {
     if (e.data?.type !== 'render') return;
