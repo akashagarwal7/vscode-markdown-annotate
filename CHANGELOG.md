@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.0
+
+- Hovering a link to a heading, a line or another Markdown file shows where it points in a floating card, like the editor's hovers: the heading's section, or the start of the file. Click the card's title to follow the link.
+- The **☰** button at the top left of the preview opens a table of contents of the document's headings, with the section you're reading marked. Click a heading, or use the arrow keys and Enter, to go there; **Back** returns.
+- Jumping to a heading no longer leaves it hidden under the preview header.
+
 ## 0.7.0
 
 - **Sync scroll** is set separately for each preview, so turning it off in one no longer turns it off in the other. The `markdownAnnotate.scrollSync` setting now sets it for newly opened previews. A second preview opened beside the first starts with it off.
