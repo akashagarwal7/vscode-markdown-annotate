@@ -22,6 +22,9 @@ that wraps onto a second line.
 
 - first item
 - second item with \`inline code\`
+- links to [the table](#a-table), [a line](#L17) and [another file](other.md#setup)
+
+## A table
 
 > A quoted passage.
 
@@ -67,6 +70,13 @@ function handle(m: FromWebview) {
   harness.messages.push(m);
   // The extension only moves the editor; nothing to re-render.
   if (m.type === 'scrolled') {
+    return;
+  }
+  // Stands in for another Markdown file next to this one.
+  if (m.type === 'peek') {
+    const other = '# Other file\n\nIntro.\n\n## Setup\n\nRun <mark data-hl="green">the installer</mark>.\n\n- one\n- two\n\n## Next\n\nLater.\n';
+    const html = m.href.startsWith('other.md') ? renderMarkdown(md, other) : undefined;
+    window.postMessage({ type: 'peek', id: m.id, title: 'other.md', html, error: html ? undefined : 'File not found' }, '*');
     return;
   }
   const map = buildTextMap(md, harness.source);

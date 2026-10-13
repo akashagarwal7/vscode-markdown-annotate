@@ -51,7 +51,17 @@ export type ToWebview =
   | { type: 'scrollToLine'; line: number }
   /** Go to a line as a jump, which Back returns from. */
   | { type: 'goToLine'; line: number }
-  | { type: 'focusHighlight'; id: string };
+  | { type: 'focusHighlight'; id: string }
+  | PeekResult;
+
+/** The answer to a `peek`: another Markdown file rendered, or why it can't be shown. */
+export interface PeekResult {
+  type: 'peek';
+  id: number;
+  title: string;
+  html?: string;
+  error?: string;
+}
 
 export type FromWebview =
   | { type: 'ready'; diff?: boolean; scrollSync?: boolean }
@@ -67,7 +77,9 @@ export type FromWebview =
   | { type: 'setTheme'; value: PreviewTheme }
   | { type: 'openLink'; href: string }
   /** Cmd/Ctrl+Alt+click: open the link in a new preview beside; `line` is where an in-document link points. */
-  | { type: 'openLinkToSide'; href: string; line?: number };
+  | { type: 'openLinkToSide'; href: string; line?: number }
+  /** A link to another Markdown file is hovered: render it for a preview card. */
+  | { type: 'peek'; id: number; href: string };
 
 export interface WebviewState {
   uri: string;

@@ -726,3 +726,131 @@ html::-webkit-scrollbar {
 .ma-actions button:hover {
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
 }
+
+/* ─── Link preview ───────────────────────────────────────────────────────── */
+
+.ma-peek {
+  position: absolute;
+  z-index: 20;
+  box-sizing: border-box;
+  width: min(560px, calc(100vw - 32px));
+  display: flex;
+  flex-direction: column;
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--ma-border);
+  border-radius: var(--ma-radius);
+  box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
+  overflow: hidden;
+}
+
+.ma-peek[hidden] {
+  display: none;
+}
+
+.ma-peek-title {
+  flex: none;
+  padding: 5px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+  color: var(--ma-muted);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--ma-border);
+  cursor: pointer;
+}
+
+.ma-peek-title:hover {
+  color: var(--vscode-textLink-foreground);
+}
+
+.markdown-body.ma-peek-body {
+  max-width: none;
+  margin: 0;
+  padding: 4px 14px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  font-size: 0.92em;
+}
+
+.ma-peek-body > :first-child {
+  margin-top: 8px;
+}
+
+.ma-peek-body a {
+  pointer-events: none;
+}
+
+.ma-peek-error,
+.ma-peek-more {
+  color: var(--ma-muted);
+}
+
+/* ─── Table of contents ──────────────────────────────────────────────────── */
+
+.ma-toc {
+  position: fixed;
+  z-index: 20;
+  left: 8px;
+  box-sizing: border-box;
+  width: min(340px, calc(100vw - 16px));
+  max-height: calc(100vh - 64px);
+  padding: 4px 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  font-family: var(--vscode-font-family);
+  font-size: 12px;
+  color: var(--vscode-editorWidget-foreground, var(--vscode-foreground));
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--ma-border);
+  border-radius: var(--ma-radius);
+  box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
+}
+
+.ma-toc[hidden] {
+  display: none;
+}
+
+.ma-toc-item {
+  display: block;
+  width: 100%;
+  padding: 3px 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  border-left: 2px solid transparent;
+  cursor: pointer;
+}
+
+.ma-toc-item:hover {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+
+.ma-toc-item:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.ma-toc-item[aria-current] {
+  color: var(--vscode-textLink-foreground);
+  border-left-color: var(--vscode-textLink-foreground);
+  font-weight: 600;
+}
+
+.ma-toc-empty {
+  margin: 4px 10px;
+  color: var(--ma-muted);
+}
+
+.ma-nav .ma-toc-toggle[aria-expanded='true'] {
+  background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+}

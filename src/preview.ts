@@ -336,15 +336,16 @@ export class Preview {
     });
   }
 
-  private resolveImage(webview: vscode.Webview, src: string): string {
+  /** `src` as the webview can load it; relative to `base`, by default this preview's file. */
+  private resolveImage(webview: vscode.Webview, src: string, base = this.uri): string {
     if (/^[a-z][\w+.-]*:/i.test(src) && !src.startsWith('file:')) {
       return src;
     }
-    const target = this.resolvePath(src.replace(/[?#].*$/, ''));
+    const target = this.resolvePath(src.replace(/[?#].*$/, ''), base);
     return target ? webview.asWebviewUri(target).toString() : src;
   }
 
-  private resolvePath(path: string): vscode.Uri | undefined {
+  private resolvePath(path: string, base = this.uri): vscode.Uri | undefined {
     if (path.startsWith('file:')) {
       return vscode.Uri.parse(path);
     }
@@ -355,10 +356,10 @@ export class Preview {
       // Keep as written.
     }
     if (decoded.startsWith('/')) {
-      const folder = vscode.workspace.getWorkspaceFolder(this.uri);
+      const folder = vscode.workspace.getWorkspaceFolder(base);
       return folder ? vscode.Uri.joinPath(folder.uri, decoded) : vscode.Uri.file(decoded);
     }
-    return vscode.Uri.joinPath(this.uri, '..', decoded);
+    return vscode.Uri.joinPath(base, '..', decoded);
   }
 
   private async handle(message: FromWebview): Promise<void> {
@@ -404,7 +405,31 @@ export class Preview {
       case 'openLinkToSide':
         await this.openLinkToSide(message.href, message.line);
         return;
+      case 'peek':
+        await this.peek(message.id, message.href);
+        return;
     }
+  }
+
+  /** Render the Markdown file a link points to, for the preview card shown while it is hovered. */
+  private async peek(id: number, href: string): Promise<void> {
+    const target = this.resolvePath(href.split('#')[0]);
+    if (!target || !isMarkdown(target)) {
+      return;
+    }
+    const title = basename(target);
+    let text: string;
+    try {
+      // An open document may have unsaved changes; anything else is read without opening it.
+      const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === target.toString());
+      text = open ? open.getText() : new TextDecoder().decode(await vscode.workspace.fs.readFile(target));
+    } catch {
+      this.post({ type: 'peek', id, title, error: 'File not found' });
+      return;
+    }
+    const webview = this.panel.webview;
+    const html = renderMarkdown(this.service.md, text, { resolveImage: (src) => this.resolveImage(webview, src, target) });
+    this.post({ type: 'peek', id, title, html });
   }
 
   private async revealLine(line: number): Promise<void> {
@@ -438,7 +463,7 @@ export class Preview {
     }
     const lineMatch = /^L(\d+)/.exec(fragment);
     let at = lineMatch ? Number(lineMatch[1]) - 1 : undefined;
-    if (!/\.(md|markdown|mdx?|mkd)$/i.test(target.path)) {
+    if (!isMarkdown(target)) {
       const selection = at === undefined ? undefined : new vscode.Range(at, 0, at, 0);
       await vscode.commands.executeCommand('vscode.open', target, { viewColumn: vscode.ViewColumn.Beside, selection });
       return;
@@ -503,6 +528,10 @@ export class Preview {
 </body>
 </html>`;
   }
+}
+
+function isMarkdown(uri: vscode.Uri): boolean {
+  return /\.(md|markdown|mdx?|mkd)$/i.test(uri.path);
 }
 
 function basename(uri: vscode.Uri): string {

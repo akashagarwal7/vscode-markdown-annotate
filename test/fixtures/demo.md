@@ -7,6 +7,8 @@ title: Demo document
 Select any text in the **annotatable preview** and pick a colour. Try selections that
 start inside *emphasis*, cross a [link](https://example.com), or span `inline code`.
 
+Peek at the [sample](./sample.md) by hovering over the link.
+
 ## Lists and quotes
 
 1. First ordered item

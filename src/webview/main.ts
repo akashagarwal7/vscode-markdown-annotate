@@ -148,6 +148,15 @@ for (const [button, label] of [
   nav.append(button);
 }
 backButton.addEventListener('click', () => goBack());
+
+// Table of contents: the document's headings, in a floating list.
+const tocButton = el('button', 'ma-toc-toggle', '☰');
+tocButton.type = 'button';
+tocButton.title = 'Table of contents';
+tocButton.setAttribute('aria-label', 'Table of contents');
+tocButton.setAttribute('aria-expanded', 'false');
+tocButton.setAttribute('aria-controls', 'ma-toc');
+nav.prepend(tocButton);
 forwardButton.addEventListener('click', () => goForward());
 
 header.append(nav, titleEl, countEl, el('span', 'ma-spacer'), diffButton, themeSwitch, syncLabel, toggleLabel);
@@ -306,8 +315,8 @@ function wrap(start: number, end: number, h: { id: string; color: string; note?:
   }
 }
 
-function decorateFileMarks(): void {
-  for (const mark of content.querySelectorAll<HTMLElement>('mark[data-hl]')) {
+function decorateFileMarks(root: ParentNode = content): void {
+  for (const mark of root.querySelectorAll<HTMLElement>('mark[data-hl]')) {
     mark.classList.add('ma-hl', 'ma-file');
     mark.dataset.id = mark.dataset.hlId || '';
     mark.dataset.color = mark.dataset.hl || '';
@@ -609,6 +618,8 @@ let renders = 0;
 function render(message: RenderMessage): void {
   renders++;
   current = message;
+  hidePeek();
+  const tocOpen = !toc.hidden;
   updatePalette(message.palette);
   content.innerHTML = message.html;
   decorateFileMarks();
@@ -616,6 +627,10 @@ function render(message: RenderMessage): void {
   applyDiff(message.diff);
   scheduleRuler();
   updateHeader();
+  if (tocOpen) {
+    // Keep it open with the edited headings, without taking the focus.
+    buildToc();
+  }
   if (firstRender) {
     firstRender = false;
     if (viewState.scrollY) {
@@ -799,6 +814,197 @@ function hidePopover(): void {
   popoverId = undefined;
 }
 
+// ─── Link preview ───────────────────────────────────────────────────────────
+
+// Hovering a link to a heading, a line or another Markdown file shows where it
+// points in a card, like the editor's hovers.
+const peek = el('div', 'ma-peek');
+peek.hidden = true;
+const peekTitle = el('button', 'ma-peek-title');
+peekTitle.type = 'button';
+peekTitle.title = 'Open';
+const peekBody = el('div', 'ma-peek-body markdown-body');
+peek.append(peekTitle, peekBody);
+document.body.appendChild(peek);
+
+const PEEK_DELAY = 350;
+const PEEK_HIDE_DELAY = 250;
+/** Blocks shown from where a link points, unless a heading ends its section sooner. */
+const PEEK_BLOCKS = 12;
+
+/** The hovered link the card is for, and where the pointer entered it. */
+let peekLink: HTMLAnchorElement | undefined;
+let peekY = 0;
+let peekTimer: ReturnType<typeof setTimeout> | undefined;
+let peekHideTimer: ReturnType<typeof setTimeout> | undefined;
+/** Counts requests, so an answer for a link no longer hovered is dropped. */
+let peekRequest = 0;
+
+/** A link within this document or to a local file (only Markdown files get an answer). */
+function peekable(href: string): boolean {
+  return href !== '' && href !== '#' && (!/^[a-z][\w+.-]*:/i.test(href) || href.startsWith('file:'));
+}
+
+function requestPeek(link: HTMLAnchorElement): void {
+  const href = link.getAttribute('href') ?? '';
+  const id = ++peekRequest;
+  if (href.startsWith('#')) {
+    if (current) {
+      showPeek(link, current.title, current.html);
+    }
+  } else {
+    post({ type: 'peek', id, href });
+  }
+}
+
+/** The part of a rendered document a link's `#fragment` points to: a heading's section, or from a line on. */
+function peekSection(root: DocumentFragment, fragment: string): { blocks: Element[]; place?: string; more: boolean } | string {
+  const top = [...root.children];
+  let start = 0;
+  let place: string | undefined;
+  const lineMatch = /^L(\d+)/.exec(fragment);
+  if (lineMatch) {
+    const line = Number(lineMatch[1]) - 1;
+    // The block the line is in: the last one starting at or before it.
+    top.forEach((b, i) => {
+      if ((blockLine(b) ?? Infinity) <= line) {
+        start = i;
+      }
+    });
+    place = `line ${line + 1}`;
+  } else if (fragment) {
+    let id = fragment;
+    try {
+      id = decodeURIComponent(fragment);
+    } catch {
+      // Keep as written.
+    }
+    const target = root.querySelector(`[id="${CSS.escape(id)}"]`);
+    if (!target) {
+      return `No heading #${id}`;
+    }
+    start = Math.max(0, top.findIndex((b) => b.contains(target)));
+    place = target.textContent?.trim() || `#${id}`;
+  }
+  const level = headingLevel(top[start]);
+  const endsSection = (b: Element) => !!level && (headingLevel(b) ?? 7) <= level;
+  let end = start + 1;
+  while (end < top.length && end - start < PEEK_BLOCKS && !endsSection(top[end])) {
+    end++;
+  }
+  return { blocks: top.slice(start, end), place, more: end < top.length && !endsSection(top[end]) };
+}
+
+function headingLevel(node: Element | undefined): number | undefined {
+  const m = /^H([1-6])$/.exec(node?.tagName ?? '');
+  return m ? Number(m[1]) : undefined;
+}
+
+function showPeek(link: HTMLAnchorElement, title: string, html?: string, error?: string): void {
+  if (link !== peekLink || !link.isConnected) {
+    return;
+  }
+  const fragment = (link.getAttribute('href') ?? '').split('#')[1] ?? '';
+  const template = el('template');
+  template.innerHTML = html ?? '';
+  const section = error ?? peekSection(template.content, fragment);
+  peekTitle.textContent = typeof section === 'object' && section.place ? `${title} › ${section.place}` : title;
+  if (typeof section === 'string') {
+    peekBody.replaceChildren(el('p', 'ma-peek-error', section));
+  } else {
+    const holder = el('div');
+    holder.append(...section.blocks);
+    // Old line numbers and ids would confuse scroll sync and links in the document.
+    clearSourceAttributes(holder);
+    decorateFileMarks(holder);
+    peekBody.replaceChildren(...holder.childNodes);
+    if (section.more) {
+      peekBody.append(el('p', 'ma-peek-more', '…'));
+    }
+  }
+  peek.hidden = false;
+  peekBody.scrollTop = 0;
+  positionPeek(link);
+}
+
+/** Below the hovered line of the link, or above it when there is more room there. */
+function positionPeek(link: HTMLElement): void {
+  const rects = [...link.getClientRects()];
+  const rect = rects.find((r) => peekY >= r.top && peekY <= r.bottom) ?? rects[0] ?? link.getBoundingClientRect();
+  const gap = 6;
+  const below = window.innerHeight - rect.bottom - gap - 8;
+  const above = rect.top - header.getBoundingClientRect().bottom - gap - 8;
+  peek.style.maxHeight = '';
+  const natural = peek.offsetHeight;
+  const showBelow = natural <= below || below >= above;
+  peek.style.maxHeight = `${Math.max(80, showBelow ? below : above)}px`;
+  const top = showBelow ? rect.bottom + gap : rect.top - gap - peek.offsetHeight;
+  const left = clamp(rect.left, 8, window.innerWidth - peek.offsetWidth - 8);
+  peek.style.top = `${top + window.scrollY}px`;
+  peek.style.left = `${left + window.scrollX}px`;
+}
+
+function hidePeek(): void {
+  clearTimeout(peekTimer);
+  clearTimeout(peekHideTimer);
+  peekLink = undefined;
+  peekRequest++;
+  peek.hidden = true;
+  peekBody.replaceChildren();
+}
+
+/** Hide soon, so the pointer can cross from the link to the card. */
+function leavePeek(to: EventTarget | null): void {
+  if (to instanceof Node && (peekLink?.contains(to) || peek.contains(to))) {
+    return;
+  }
+  clearTimeout(peekHideTimer);
+  if (peek.hidden) {
+    hidePeek();
+  } else {
+    peekHideTimer = setTimeout(hidePeek, PEEK_HIDE_DELAY);
+  }
+}
+
+content.addEventListener('mouseover', (e) => {
+  const link = (e.target as Element).closest?.<HTMLAnchorElement>('a[href]');
+  if (!link) {
+    return;
+  }
+  if (link === peekLink) {
+    clearTimeout(peekHideTimer);
+    return;
+  }
+  // Not while selecting text.
+  if (e.buttons || !peekable(link.getAttribute('href') ?? '')) {
+    return;
+  }
+  hidePeek();
+  peekLink = link;
+  peekY = e.clientY;
+  peekTimer = setTimeout(() => requestPeek(link), PEEK_DELAY);
+});
+content.addEventListener('mouseout', (e) => {
+  if (peekLink && peekLink.contains(e.target as Node)) {
+    leavePeek(e.relatedTarget);
+  }
+});
+peek.addEventListener('mouseenter', () => clearTimeout(peekHideTimer));
+peek.addEventListener('mouseleave', (e) => leavePeek(e.relatedTarget));
+// The title goes where the link does.
+peekTitle.addEventListener('click', () => {
+  const link = peekLink;
+  hidePeek();
+  link?.click();
+});
+// Links in the card stay put: VS Code's frame would otherwise follow them.
+peek.addEventListener('click', (e) => {
+  if ((e.target as Element).closest('a')) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+});
+
 // ─── Events ─────────────────────────────────────────────────────────────────
 
 document.addEventListener('mouseup', (e) => {
@@ -818,6 +1024,8 @@ document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     hideToolbar();
     hidePopover();
+    hidePeek();
+    hideToc();
     return;
   }
   if (!toolbar.hidden && pending && current && /^[1-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
@@ -831,6 +1039,12 @@ document.addEventListener('keydown', (e) => {
 
 document.addEventListener('mousedown', (e) => {
   const target = e.target as Node;
+  if (!peek.contains(target)) {
+    hidePeek();
+  }
+  if (!toc.contains(target) && !tocButton.contains(target)) {
+    hideToc();
+  }
   if (!popover.hidden && !popover.contains(target)) {
     hidePopover();
   }
@@ -918,6 +1132,11 @@ function lineAnchors(): { line: number; top: number }[] {
 /** Page offset that puts content just below the header. */
 const syncOffset = () => header.offsetHeight + 8;
 
+// Jumps to headings (links, the table of contents) land below the sticky header, not under it.
+new ResizeObserver(() => {
+  document.documentElement.style.scrollPaddingTop = `${syncOffset()}px`;
+}).observe(header);
+
 /** Source line at the top of the view, interpolated between source-mapped elements. */
 function topLine(): number | undefined {
   const anchors = lineAnchors();
@@ -967,6 +1186,101 @@ function stayAt(y: number): void {
   requestAnimationFrame(restore);
   setTimeout(restore, 50);
 }
+
+// ─── Table of contents ──────────────────────────────────────────────────────
+
+const toc = el('nav', 'ma-toc');
+toc.id = 'ma-toc';
+toc.setAttribute('aria-label', 'Table of contents');
+toc.hidden = true;
+document.body.appendChild(toc);
+
+/** The document's headings (removed diff blocks have none: their ids are cleared). */
+function headings(): HTMLElement[] {
+  return [...content.querySelectorAll<HTMLElement>(':is(h1, h2, h3, h4, h5, h6)[id]')];
+}
+
+/** The heading whose section is at the top of the view. */
+function currentHeading(list: HTMLElement[]): HTMLElement | undefined {
+  const y = header.offsetHeight + 8 + 1;
+  let found: HTMLElement | undefined;
+  for (const h of list) {
+    if (h.getBoundingClientRect().top > y) {
+      break;
+    }
+    found = h;
+  }
+  return found ?? list[0];
+}
+
+function buildToc(): void {
+  const list = headings();
+  if (!list.length) {
+    toc.replaceChildren(el('p', 'ma-toc-empty', 'No headings'));
+    return;
+  }
+  // Indent relative to the shallowest level used, so a file without an h1 isn't all indented.
+  const top = Math.min(...list.map((h) => Number(h.tagName[1])));
+  const now = currentHeading(list);
+  toc.replaceChildren(
+    ...list.map((h) => {
+      const item = el('button', 'ma-toc-item', h.textContent?.trim() || h.id);
+      item.type = 'button';
+      item.style.paddingLeft = `${10 + (Number(h.tagName[1]) - top) * 14}px`;
+      item.title = item.textContent ?? '';
+      if (h === now) {
+        item.setAttribute('aria-current', 'location');
+      }
+      item.addEventListener('click', () => {
+        hideToc();
+        jump(() => h.scrollIntoView({ block: 'start' }));
+      });
+      return item;
+    }),
+  );
+}
+
+function showToc(): void {
+  buildToc();
+  toc.hidden = false;
+  tocButton.setAttribute('aria-expanded', 'true');
+  toc.style.top = `${header.getBoundingClientRect().bottom + 4}px`;
+  const current = toc.querySelector<HTMLElement>('[aria-current]') ?? toc.querySelector<HTMLElement>('.ma-toc-item');
+  current?.scrollIntoView({ block: 'center' });
+  current?.focus();
+}
+
+function hideToc(): void {
+  if (toc.hidden) {
+    return;
+  }
+  const hadFocus = toc.contains(document.activeElement);
+  toc.hidden = true;
+  tocButton.setAttribute('aria-expanded', 'false');
+  if (hadFocus) {
+    tocButton.focus();
+  }
+}
+
+tocButton.addEventListener('click', () => (toc.hidden ? showToc() : hideToc()));
+
+// Arrow keys move through the headings; Enter goes to one (the items are buttons).
+toc.addEventListener('keydown', (e) => {
+  const items = [...toc.querySelectorAll<HTMLElement>('.ma-toc-item')];
+  const i = items.indexOf(document.activeElement as HTMLElement);
+  const next =
+    e.key === 'ArrowDown' ? items[Math.min(i + 1, items.length - 1)]
+    : e.key === 'ArrowUp' ? items[Math.max(i - 1, 0)]
+    : e.key === 'Home' ? items[0]
+    : e.key === 'End' ? items[items.length - 1]
+    : undefined;
+  if (next) {
+    e.preventDefault();
+    next.focus();
+  } else if (e.key === 'Tab') {
+    hideToc();
+  }
+});
 
 // ─── Back and forward ───────────────────────────────────────────────────────
 
@@ -1072,6 +1386,11 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       break;
     case 'focusHighlight':
       focusHighlight(message.id);
+      break;
+    case 'peek':
+      if (message.id === peekRequest && peekLink) {
+        showPeek(peekLink, message.title, message.html, message.error);
+      }
       break;
   }
 });
