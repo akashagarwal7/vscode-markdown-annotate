@@ -4,6 +4,8 @@
  */
 import { findQuote, quoteFromRange, strip, TextQuote } from '../core/anchor';
 import { Range, wordDiff } from '../core/words';
+// VS Code's `list-ordered` codicon (CC BY 4.0, see ThirdPartyNotices.txt).
+import listOrderedSvg from './icons/list-ordered.svg';
 import type { FromWebview, PaletteColor, PreviewTheme, RenderMessage, StoredHighlight, ToWebview, WebviewState } from '../protocol';
 
 interface VsCodeApi {
@@ -119,7 +121,7 @@ applyTheme('auto');
 
 // Git diff: show what changed since the last commit.
 const DIFF_TITLE = 'Show changes since the last commit (HEAD)';
-const diffButton = el('button', 'ma-diff-toggle', 'Git diff');
+const diffButton = el('button', 'ma-toggle-button ma-diff-toggle', 'Git diff');
 diffButton.type = 'button';
 diffButton.title = DIFF_TITLE;
 diffButton.setAttribute('aria-pressed', String(!!viewState.diff));
@@ -130,6 +132,28 @@ diffButton.addEventListener('click', () => {
   diffButton.setAttribute('aria-pressed', String(value));
   post({ type: 'setDiff', value });
 });
+
+// Heading numbers: 1, 1.1, 1.2.1 … in the document and the table of contents.
+const numberButton = el('button', 'ma-toggle-button ma-icon-button');
+numberButton.append(icon(listOrderedSvg));
+numberButton.type = 'button';
+numberButton.title = 'Number headings';
+numberButton.setAttribute('aria-label', 'Number headings');
+numberButton.setAttribute('aria-pressed', 'false');
+numberButton.addEventListener('click', () => {
+  const value = numberButton.getAttribute('aria-pressed') !== 'true';
+  applyNumbering(value);
+  post({ type: 'setNumberHeadings', value });
+});
+
+/** An SVG icon file, drawn in the text colour (the icons use `currentColor`). */
+function icon(markup: string): SVGSVGElement {
+  const holder = el('span');
+  holder.innerHTML = markup;
+  const svg = holder.querySelector('svg')!;
+  svg.setAttribute('aria-hidden', 'true');
+  return svg;
+}
 
 // Back and forward through jumps within the preview, like a browser.
 const nav = el('div', 'ma-nav');
@@ -159,7 +183,7 @@ tocButton.setAttribute('aria-controls', 'ma-toc');
 nav.prepend(tocButton);
 forwardButton.addEventListener('click', () => goForward());
 
-header.append(nav, titleEl, countEl, el('span', 'ma-spacer'), diffButton, themeSwitch, syncLabel, toggleLabel);
+header.append(nav, titleEl, countEl, el('span', 'ma-spacer'), numberButton, diffButton, themeSwitch, syncLabel, toggleLabel);
 document.body.prepend(header);
 
 const toolbar = el('div', 'ma-toolbar');
@@ -226,6 +250,42 @@ function updateHeader(): void {
   if (current.theme !== theme) {
     applyTheme(current.theme);
   }
+}
+
+/**
+ * Number the headings by nesting, skipped levels collapsed (an h4 under an h2
+ * is 1.1). A lone top heading opening the document is its title and isn't
+ * numbered. Numbers are drawn by CSS, so they're not part of the text that
+ * highlights are found in.
+ */
+function applyNumbering(on: boolean): void {
+  numbering = on;
+  numberButton.setAttribute('aria-pressed', String(on));
+  numberHeadingsIn(content, on);
+  if (!toc.hidden) {
+    buildToc();
+  }
+}
+
+/** Whether headings are numbered. */
+let numbering = false;
+
+function numberHeadingsIn(root: ParentNode, on: boolean): void {
+  const list = headings(root);
+  const depths = nesting(list);
+  const titled = depths[0] === 0 && depths.filter((d) => d === 0).length === 1;
+  const counts: number[] = [];
+  list.forEach((h, i) => {
+    if (!on || (titled && i === 0)) {
+      delete h.dataset.number;
+      return;
+    }
+    // A lone title doesn't count as a level.
+    const depth = titled ? depths[i] - 1 : depths[i];
+    counts.length = depth + 1;
+    counts[depth] = (counts[depth] ?? 0) + 1;
+    h.dataset.number = counts.map((c) => c ?? 0).join('.');
+  });
 }
 
 // ─── Rendering highlights ───────────────────────────────────────────────────
@@ -625,6 +685,7 @@ function render(message: RenderMessage): void {
   decorateFileMarks();
   paintStored(message.highlights);
   applyDiff(message.diff);
+  applyNumbering(message.numberHeadings);
   scheduleRuler();
   updateHeader();
   if (tocOpen) {
@@ -884,7 +945,8 @@ function peekSection(root: DocumentFragment, fragment: string): { blocks: Elemen
       return `No heading #${id}`;
     }
     start = Math.max(0, top.findIndex((b) => b.contains(target)));
-    place = target.textContent?.trim() || `#${id}`;
+    const number = (target as HTMLElement).dataset.number;
+    place = `${number ? `${number}. ` : ''}${target.textContent?.trim() || `#${id}`}`;
   }
   const level = headingLevel(top[start]);
   const endsSection = (b: Element) => !!level && (headingLevel(b) ?? 7) <= level;
@@ -907,6 +969,8 @@ function showPeek(link: HTMLAnchorElement, title: string, html?: string, error?:
   const fragment = (link.getAttribute('href') ?? '').split('#')[1] ?? '';
   const template = el('template');
   template.innerHTML = html ?? '';
+  // Numbered across the whole document, as it would be in its own preview.
+  numberHeadingsIn(template.content, numbering);
   const section = error ?? peekSection(template.content, fragment);
   peekTitle.textContent = typeof section === 'object' && section.place ? `${title} › ${section.place}` : title;
   if (typeof section === 'string') {
@@ -1196,8 +1260,21 @@ toc.hidden = true;
 document.body.appendChild(toc);
 
 /** The document's headings (removed diff blocks have none: their ids are cleared). */
-function headings(): HTMLElement[] {
-  return [...content.querySelectorAll<HTMLElement>(':is(h1, h2, h3, h4, h5, h6)[id]')];
+function headings(root: ParentNode = content): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(':is(h1, h2, h3, h4, h5, h6)[id]')];
+}
+
+/** How deep each heading is nested under the ones before it, skipped levels collapsed (an h4 under an h2 is one deeper). */
+function nesting(list: HTMLElement[]): number[] {
+  const open: number[] = [];
+  return list.map((h) => {
+    const level = Number(h.tagName[1]);
+    while (open.length && open[open.length - 1] >= level) {
+      open.pop();
+    }
+    open.push(level);
+    return open.length - 1;
+  });
 }
 
 /** The heading whose section is at the top of the view. */
@@ -1219,14 +1296,16 @@ function buildToc(): void {
     toc.replaceChildren(el('p', 'ma-toc-empty', 'No headings'));
     return;
   }
-  // Indent relative to the shallowest level used, so a file without an h1 isn't all indented.
-  const top = Math.min(...list.map((h) => Number(h.tagName[1])));
+  const depths = nesting(list);
   const now = currentHeading(list);
   toc.replaceChildren(
-    ...list.map((h) => {
+    ...list.map((h, i) => {
       const item = el('button', 'ma-toc-item', h.textContent?.trim() || h.id);
+      if (h.dataset.number) {
+        item.prepend(el('span', 'ma-toc-number', `${h.dataset.number}.`));
+      }
       item.type = 'button';
-      item.style.paddingLeft = `${10 + (Number(h.tagName[1]) - top) * 14}px`;
+      item.style.paddingLeft = `${10 + depths[i] * 14}px`;
       item.title = item.textContent ?? '';
       if (h === now) {
         item.setAttribute('aria-current', 'location');

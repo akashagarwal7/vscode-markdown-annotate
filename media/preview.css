@@ -147,7 +147,7 @@ html > body[data-theme='dark'] {
 }
 
 .ma-theme button,
-.ma-diff-toggle {
+.ma-toggle-button {
   padding: 1px 8px;
   font: inherit;
   color: var(--ma-muted);
@@ -156,7 +156,7 @@ html > body[data-theme='dark'] {
   cursor: pointer;
 }
 
-.ma-diff-toggle {
+.ma-toggle-button {
   flex-shrink: 0;
   white-space: nowrap;
   border: 1px solid var(--ma-border);
@@ -168,12 +168,12 @@ html > body[data-theme='dark'] {
 }
 
 .ma-theme button:hover,
-.ma-diff-toggle:hover {
+.ma-toggle-button:hover {
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
 }
 
 .ma-theme button[aria-checked='true'],
-.ma-diff-toggle[aria-pressed='true'] {
+.ma-toggle-button[aria-pressed='true'] {
   color: var(--vscode-foreground);
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
   font-weight: 600;
@@ -186,7 +186,7 @@ html > body[data-theme='dark'] {
 }
 
 .ma-theme button:focus-visible,
-.ma-diff-toggle:focus-visible {
+.ma-toggle-button:focus-visible {
   outline: 1px solid var(--vscode-focusBorder);
   outline-offset: -1px;
 }
@@ -853,4 +853,36 @@ html::-webkit-scrollbar {
 
 .ma-nav .ma-toc-toggle[aria-expanded='true'] {
   background: var(--vscode-toolbar-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+
+/* ─── Heading numbers ────────────────────────────────────────────────────── */
+
+.markdown-body [data-number]::before {
+  content: attr(data-number) ".";
+  margin-right: 0.5em;
+  color: var(--ma-muted);
+  font-weight: 600;
+}
+
+.ma-toc-number {
+  margin-right: 0.5em;
+  color: var(--ma-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.ma-toc-item[aria-current] .ma-toc-number {
+  color: inherit;
+}
+
+.ma-icon-button {
+  /* As tall as the text buttons beside it. */
+  align-self: stretch;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+}
+
+.ma-icon-button svg {
+  width: 16px;
+  height: 16px;
 }

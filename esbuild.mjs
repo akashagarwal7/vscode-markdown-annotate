@@ -28,6 +28,8 @@ const contexts = await Promise.all([
     platform: 'browser',
     format: 'iife',
     target: 'chrome114',
+    // Icons are inlined as markup, so they can take the text colour.
+    loader: { '.svg': 'text' },
   }),
 ]);
 

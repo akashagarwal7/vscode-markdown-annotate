@@ -2,7 +2,7 @@
 import * as vscode from 'vscode';
 import { blockDiff } from './core/diff';
 import { headingLine, renderMarkdown } from './core/markdown';
-import { palette, previewTheme, scrollSync, setPreviewTheme, setWriteToFile, writeToFile } from './config';
+import { numberHeadings, palette, previewTheme, scrollSync, setNumberHeadings, setPreviewTheme, setWriteToFile, writeToFile } from './config';
 import { BaseResult, GitBase } from './git';
 import type { HighlightService } from './highlights';
 import type { FromWebview, RenderMessage, ToWebview, WebviewState } from './protocol';
@@ -332,6 +332,7 @@ export class Preview {
       writeToFile: writeToFile(this.uri),
       scrollSync: this.sync,
       theme: previewTheme(),
+      numberHeadings: numberHeadings(),
       diff,
     });
   }
@@ -395,6 +396,9 @@ export class Preview {
         return;
       case 'setTheme':
         await setPreviewTheme(message.value);
+        return;
+      case 'setNumberHeadings':
+        await setNumberHeadings(message.value);
         return;
       case 'revealLine':
         await this.revealLine(message.line);

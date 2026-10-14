@@ -35,6 +35,8 @@ Hovering a link to a heading, a line or another Markdown file shows where it poi
 
 The **☰** button at the top left of the preview lists the document's headings, with the section you're reading marked. Click one, or move with the arrow keys and press Enter, to go there; Back returns.
 
+The numbered-list button in the header numbers the headings, in the preview and the table of contents: 1., 1.1., 1.2.1. and so on. A lone top heading is taken as the document's title and left unnumbered. It's a reading preference, kept for every file (the `markdownAnnotate.numberHeadings` setting).
+
 The **← →** buttons in the preview header go back and forward through jumps within the preview (links to headings, highlights picked in the sidebar, clicks on the scrollbar), like a browser. Also `Cmd/Ctrl+[` and `]`, `Alt+←` and `→`, or the mouse's back and forward buttons.
 
 ### Syntax highlighting

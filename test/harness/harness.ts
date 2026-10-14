@@ -40,6 +40,7 @@ const answer = 42;
   stored: [] as StoredHighlight[],
   writeToFile: false,
   theme: 'auto' as 'auto' | 'light' | 'dark',
+  numberHeadings: false,
   /** Stands in for the file at HEAD; the diff view compares against it. */
   base: '',
   diff: false,
@@ -59,6 +60,7 @@ function send() {
       writeToFile: harness.writeToFile,
       scrollSync: true,
       theme: harness.theme,
+      numberHeadings: harness.numberHeadings,
       diff: harness.diff ? { base: 'HEAD', view: blockDiff(md, harness.base, harness.source) } : undefined,
     },
     '*',
@@ -122,6 +124,9 @@ function handle(m: FromWebview) {
       break;
     case 'setTheme':
       harness.theme = m.value;
+      break;
+    case 'setNumberHeadings':
+      harness.numberHeadings = m.value;
       break;
   }
   setTimeout(send, 0);

@@ -42,6 +42,7 @@ export interface RenderMessage {
   writeToFile: boolean;
   scrollSync: boolean;
   theme: PreviewTheme;
+  numberHeadings: boolean;
   /** Present while the diff view is on: the diff, or why there is none. */
   diff?: { view: DiffView; base: string } | { unavailable: string };
 }
@@ -75,6 +76,7 @@ export type FromWebview =
   /** The preview was scrolled by the user; `line` is the source line now at its top. */
   | { type: 'scrolled'; line: number }
   | { type: 'setTheme'; value: PreviewTheme }
+  | { type: 'setNumberHeadings'; value: boolean }
   | { type: 'openLink'; href: string }
   /** Cmd/Ctrl+Alt+click: open the link in a new preview beside; `line` is where an in-document link points. */
   | { type: 'openLinkToSide'; href: string; line?: number }

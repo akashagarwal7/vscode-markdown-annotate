@@ -1,6 +1,14 @@
 Markdown Annotate bundles the following third-party software.
 
 ================================================================
+Codicons (the "list-ordered" icon) — CC BY 4.0
+================================================================
+Copyright (c) Microsoft Corporation. The heading-numbering button
+draws the "list-ordered" icon from https://github.com/microsoft/vscode-codicons,
+licensed under the Creative Commons Attribution 4.0 International
+License: https://creativecommons.org/licenses/by/4.0/
+
+================================================================
 markdown-it 14.3.2 — MIT
 ================================================================
 Copyright (c) 2014 Vitaly Puzrin, Alex Kocharin.

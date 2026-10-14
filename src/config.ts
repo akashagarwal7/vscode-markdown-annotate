@@ -53,6 +53,15 @@ export async function setPreviewTheme(value: PreviewTheme): Promise<void> {
   await config().update('previewTheme', value === 'auto' ? undefined : value, vscode.ConfigurationTarget.Global);
 }
 
+export function numberHeadings(): boolean {
+  return config().get<boolean>('numberHeadings', false);
+}
+
+/** A reading preference, like the theme. */
+export async function setNumberHeadings(value: boolean): Promise<void> {
+  await config().update('numberHeadings', value || undefined, vscode.ConfigurationTarget.Global);
+}
+
 export function inlineStyles(): boolean {
   return config().get<boolean>('fileMarks.inlineStyle', true);
 }
