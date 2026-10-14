@@ -7,6 +7,7 @@ import { applyEdits, groupPieces, insertEdits, newId, parseMarks, planMarks, rem
 import type { FromWebview, StoredHighlight } from '../../src/protocol';
 
 const md = createMarkdown();
+const OTHER = 'file:///other.md';
 const palette = [
   { name: 'yellow', color: '#fde047' },
   { name: 'green', color: '#86efac' },
@@ -38,6 +39,8 @@ const answer = 42;
 \`\`\`
 `,
   stored: [] as StoredHighlight[],
+  /** Stored highlights of other.md, which link previews show. */
+  otherStored: [] as StoredHighlight[],
   writeToFile: false,
   theme: 'auto' as 'auto' | 'light' | 'dark',
   numberHeadings: false,
@@ -74,11 +77,23 @@ function handle(m: FromWebview) {
   if (m.type === 'scrolled') {
     return;
   }
-  // Stands in for another Markdown file next to this one.
+  // Stands in for another Markdown file next to this one, with stored highlights of its own.
   if (m.type === 'peek') {
-    const other = '# Other file\n\nIntro.\n\n## Setup\n\nRun <mark data-hl="green">the installer</mark>.\n\n- one\n- two\n\n## Next\n\nLater.\n';
+    const other = '# Other file\n\nIntro.\n\n## Setup\n\nRun <mark data-hl="green">the installer</mark>, then restart.\n\n- one\n- two\n\n## Next\n\nLater.\n';
     const html = m.href.startsWith('other.md') ? renderMarkdown(md, other) : undefined;
-    window.postMessage({ type: 'peek', id: m.id, title: 'other.md', html, error: html ? undefined : 'File not found' }, '*');
+    const reply = { type: 'peek', id: m.id, uri: OTHER, title: 'other.md', html, highlights: harness.otherStored };
+    window.postMessage(html ? reply : { ...reply, error: 'File not found' }, '*');
+    return;
+  }
+  if ((m.type === 'create' || m.type === 'update' || m.type === 'delete') && m.uri === OTHER) {
+    if (m.type === 'create') {
+      harness.otherStored.push({ id: newId(), color: m.color, quote: m.quote, line: m.line, createdAt: Date.now() });
+    } else if (m.type === 'update') {
+      harness.otherStored = harness.otherStored.map((h) => (h.id === m.id ? { ...h, ...(m.color ? { color: m.color } : {}), ...(m.note !== undefined ? { note: m.note } : {}) } : h));
+    } else {
+      harness.otherStored = harness.otherStored.filter((h) => h.id !== m.id);
+    }
+    setTimeout(() => window.postMessage({ type: 'peekChanged', uri: OTHER }, '*'), 0);
     return;
   }
   const map = buildTextMap(md, harness.source);

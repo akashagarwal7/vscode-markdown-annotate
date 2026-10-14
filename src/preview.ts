@@ -297,8 +297,9 @@ export class Preview {
     }
   }
 
-  private async document(): Promise<vscode.TextDocument> {
-    return vscode.workspace.openTextDocument(this.uri);
+  /** This preview's document, or another one a link preview shows. */
+  private async document(uri?: string): Promise<vscode.TextDocument> {
+    return vscode.workspace.openTextDocument(uri ? vscode.Uri.parse(uri) : this.uri);
   }
 
   private async render(): Promise<void> {
@@ -376,13 +377,16 @@ export class Preview {
         await this.render();
         return;
       case 'create':
-        await this.service.create(await this.document(), message.quote, message.line, message.color);
+        await this.service.create(await this.document(message.uri), message.quote, message.line, message.color);
+        this.peekChanged(message.uri);
         return;
       case 'update':
-        await this.service.update(await this.document(), message.id, message);
+        await this.service.update(await this.document(message.uri), message.id, message);
+        this.peekChanged(message.uri);
         return;
       case 'delete':
-        await this.service.remove(await this.document(), message.id);
+        await this.service.remove(await this.document(message.uri), message.id);
+        this.peekChanged(message.uri);
         return;
       case 'setWriteToFile':
         await setWriteToFile(message.value);
@@ -401,7 +405,7 @@ export class Preview {
         await setNumberHeadings(message.value);
         return;
       case 'revealLine':
-        await this.revealLine(message.line);
+        await this.revealLine(message.line, message.uri);
         return;
       case 'openLink':
         await this.openLink(message.href);
@@ -422,23 +426,31 @@ export class Preview {
       return;
     }
     const title = basename(target);
+    const uri = target.toString();
     let text: string;
     try {
       // An open document may have unsaved changes; anything else is read without opening it.
       const open = vscode.workspace.textDocuments.find((d) => d.uri.toString() === target.toString());
       text = open ? open.getText() : new TextDecoder().decode(await vscode.workspace.fs.readFile(target));
     } catch {
-      this.post({ type: 'peek', id, title, error: 'File not found' });
+      this.post({ type: 'peek', id, uri, title, error: 'File not found' });
       return;
     }
     const webview = this.panel.webview;
     const html = renderMarkdown(this.service.md, text, { resolveImage: (src) => this.resolveImage(webview, src, target) });
-    this.post({ type: 'peek', id, title, html });
+    this.post({ type: 'peek', id, uri, title, html, highlights: await this.service.store.get(target) });
   }
 
-  private async revealLine(line: number): Promise<void> {
-    const doc = await this.document();
-    const visible = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === this.uri.toString());
+  /** Changes to this file re-render the preview; another file's are only in the link preview. */
+  private peekChanged(uri: string | undefined): void {
+    if (uri && uri !== this.uri.toString()) {
+      this.post({ type: 'peekChanged', uri });
+    }
+  }
+
+  private async revealLine(line: number, uri?: string): Promise<void> {
+    const doc = await this.document(uri);
+    const visible = vscode.window.visibleTextEditors.find((e) => e.document.uri.toString() === doc.uri.toString());
     const editor = await vscode.window.showTextDocument(doc, {
       viewColumn: visible?.viewColumn ?? vscode.ViewColumn.Beside,
     });

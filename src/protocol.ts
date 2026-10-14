@@ -53,24 +53,30 @@ export type ToWebview =
   /** Go to a line as a jump, which Back returns from. */
   | { type: 'goToLine'; line: number }
   | { type: 'focusHighlight'; id: string }
-  | PeekResult;
+  | PeekResult
+  /** Highlights in the file the link preview shows changed: ask for it again. */
+  | { type: 'peekChanged'; uri: string };
 
 /** The answer to a `peek`: another Markdown file rendered, or why it can't be shown. */
 export interface PeekResult {
   type: 'peek';
   id: number;
+  /** The file shown, which highlights made in the card go to. */
+  uri: string;
   title: string;
   html?: string;
+  highlights?: StoredHighlight[];
   error?: string;
 }
 
 export type FromWebview =
   | { type: 'ready'; diff?: boolean; scrollSync?: boolean }
   | { type: 'setDiff'; value: boolean }
-  | { type: 'create'; quote: TextQuote; line?: number; color: string }
-  | { type: 'update'; id: string; color?: string; note?: string }
-  | { type: 'delete'; id: string }
-  | { type: 'revealLine'; line: number }
+  /** Highlight operations; `uri` is another file's, for highlights in a link preview. */
+  | { type: 'create'; quote: TextQuote; line?: number; color: string; uri?: string }
+  | { type: 'update'; id: string; color?: string; note?: string; uri?: string }
+  | { type: 'delete'; id: string; uri?: string }
+  | { type: 'revealLine'; line: number; uri?: string }
   | { type: 'setWriteToFile'; value: boolean }
   | { type: 'setScrollSync'; value: boolean }
   /** The preview was scrolled by the user; `line` is the source line now at its top. */

@@ -731,7 +731,8 @@ html::-webkit-scrollbar {
 
 .ma-peek {
   position: absolute;
-  z-index: 20;
+  /* Under the colour toolbar and popover, which act on highlights in it. */
+  z-index: 19;
   box-sizing: border-box;
   width: min(560px, calc(100vw - 32px));
   display: flex;

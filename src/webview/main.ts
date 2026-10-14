@@ -31,7 +31,8 @@ const content = document.getElementById('content') as HTMLElement;
 
 let current: RenderMessage | undefined;
 let firstRender = true;
-let pending: { quote: TextQuote; line?: number } | undefined;
+/** A selection to highlight; `uri` is set when it is in a link preview of another file. */
+let pending: { quote: TextQuote; line?: number; uri?: string } | undefined;
 let unanchored = 0;
 
 // ─── Chrome: header, selection toolbar, popover ─────────────────────────────
@@ -196,6 +197,8 @@ const popover = el('div', 'ma-popover');
 popover.hidden = true;
 document.body.appendChild(popover);
 let popoverId: string | undefined;
+/** The file of the popover's highlight, when it is in a link preview. */
+let popoverUri: string | undefined;
 
 function swatch(color: PaletteColor, index: number, pressed: boolean, onPick: () => void): HTMLButtonElement {
   const button = el('button', 'ma-swatch');
@@ -296,15 +299,15 @@ interface TextIndex {
   starts: number[];
 }
 
-/** Text nodes of the document; removed diff blocks are not part of it. */
-function textWalker(): TreeWalker {
-  return document.createTreeWalker(content, NodeFilter.SHOW_TEXT, {
-    acceptNode: (n) => (n.parentElement?.closest('.ma-diff-del') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+/** Text nodes of the document (or a link preview); removed diff blocks are not part of it. */
+function textWalker(root: Node = content): TreeWalker {
+  return document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (n.parentElement?.closest('.ma-diff-del, .ma-peek-more') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
   });
 }
 
-function textIndex(): TextIndex {
-  const walker = textWalker();
+function textIndex(root: Node = content): TextIndex {
+  const walker = textWalker(root);
   const nodes: Text[] = [];
   const starts: number[] = [];
   let text = '';
@@ -339,8 +342,8 @@ function lineOf(node: Node | null | undefined): number | undefined {
 // Whitespace between block elements must not be wrapped in spans.
 const BLOCK_CONTAINERS = new Set(['MAIN', 'UL', 'OL', 'TABLE', 'THEAD', 'TBODY', 'TFOOT', 'TR', 'BLOCKQUOTE', 'DIV', 'SECTION', 'DL']);
 
-function wrap(start: number, end: number, h: { id: string; color: string; note?: string }): void {
-  const walker = textWalker();
+function wrap(root: Node, start: number, end: number, h: { id: string; color: string; note?: string }): void {
+  const walker = textWalker(root);
   const targets: { node: Text; a: number; b: number }[] = [];
   let pos = 0;
   for (let n = walker.nextNode() as Text | null; n && pos < end; n = walker.nextNode() as Text | null) {
@@ -383,11 +386,12 @@ function decorateFileMarks(root: ParentNode = content): void {
   }
 }
 
-function paintStored(highlights: StoredHighlight[]): void {
-  const index = textIndex();
+/** Paint stored highlights into `root`; returns how many weren't found. */
+function paintStored(highlights: StoredHighlight[], root: Node = content): number {
+  const index = textIndex(root);
   const stripped = strip(index.text);
   const matches: { start: number; end: number; h: StoredHighlight }[] = [];
-  unanchored = 0;
+  let unanchored = 0;
   for (const h of [...highlights].sort((a, b) => a.createdAt - b.createdAt)) {
     const lineDistance =
       h.line === undefined
@@ -402,8 +406,9 @@ function paintStored(highlights: StoredHighlight[]): void {
   }
   // Wrapping splits text nodes but never changes the text, so offsets stay valid.
   for (const { start, end, h } of matches) {
-    wrap(start, end, h);
+    wrap(root, start, end, h);
   }
+  return unanchored;
 }
 
 // ─── Diff against git ───────────────────────────────────────────────────────
@@ -678,12 +683,14 @@ let renders = 0;
 function render(message: RenderMessage): void {
   renders++;
   current = message;
-  hidePeek();
   const tocOpen = !toc.hidden;
   updatePalette(message.palette);
+  // The link preview stays open over the re-rendered document, on the same link.
+  const links = [...content.querySelectorAll('a[href]')];
+  const peekIndex = peekLink ? links.indexOf(peekLink) : -1;
   content.innerHTML = message.html;
   decorateFileMarks();
-  paintStored(message.highlights);
+  unanchored = paintStored(message.highlights);
   applyDiff(message.diff);
   applyNumbering(message.numberHeadings);
   scheduleRuler();
@@ -701,30 +708,46 @@ function render(message: RenderMessage): void {
       scrollToLine(viewState.line);
     }
   }
-  if (popoverId) {
-    const anchor = firstHighlight(popoverId);
-    if (anchor && popover.contains(document.activeElement)) {
-      // Don't rebuild while the note is being typed.
-      positionPopover(anchor);
-    } else if (anchor) {
-      showPopover(popoverId, anchor, false);
+  if (peekLink) {
+    const link = content.querySelectorAll<HTMLAnchorElement>('a[href]')[peekIndex];
+    if (!peek.hidden && link && link.getAttribute('href') === peekLink.getAttribute('href')) {
+      peekLink = link;
+      requestPeek(link);
     } else {
-      hidePopover();
+      hidePeek();
     }
+  }
+  refreshPopover();
+}
+
+/** After a re-render, move the popover to its highlight's new element, or close it if it's gone. */
+function refreshPopover(): void {
+  if (!popoverId) {
+    return;
+  }
+  const anchor = firstHighlight(popoverId, popoverUri);
+  if (anchor && popover.contains(document.activeElement)) {
+    // Don't rebuild while the note is being typed.
+    positionPopover(anchor);
+  } else if (anchor) {
+    showPopover(popoverId, anchor, false);
+  } else {
+    hidePopover();
   }
 }
 
-function firstHighlight(id: string): HTMLElement | null {
-  return content.querySelector<HTMLElement>(`.ma-hl[data-id="${CSS.escape(id)}"]`);
+/** A highlight's first element: in the document, or with `uri`, in the link preview. */
+function firstHighlight(id: string, uri?: string): HTMLElement | null {
+  return (uri ? peekBody : content).querySelector<HTMLElement>(`.ma-hl[data-id="${CSS.escape(id)}"]`);
 }
 
 // ─── Selection → new highlight ──────────────────────────────────────────────
 
-/** Offset of a DOM position in the text of `textIndex()`. */
-function offsetOf(container: Node, offset: number): number {
+/** Offset of a DOM position in the text of `textIndex(root)`. */
+function offsetOf(root: Node, container: Node, offset: number): number {
   const point = document.createRange();
   point.setStart(container, offset);
-  const walker = textWalker();
+  const walker = textWalker(root);
   let total = 0;
   for (let n = walker.nextNode() as Text | null; n; n = walker.nextNode() as Text | null) {
     if (n === container) {
@@ -745,17 +768,20 @@ function onSelectionChange(): void {
     return;
   }
   const range = selection.getRangeAt(0);
-  if (!content.contains(range.commonAncestorContainer)) {
+  // In the document, or in a link preview, where it highlights the file shown.
+  const inPeek = !peek.hidden && peekBody.contains(range.commonAncestorContainer);
+  const root = inPeek ? peekBody : content;
+  if (!root.contains(range.commonAncestorContainer)) {
     hideToolbar();
     return;
   }
-  const text = textIndex().text;
-  const quote = quoteFromRange(text, offsetOf(range.startContainer, range.startOffset), offsetOf(range.endContainer, range.endOffset));
+  const text = textIndex(root).text;
+  const quote = quoteFromRange(text, offsetOf(root, range.startContainer, range.startOffset), offsetOf(root, range.endContainer, range.endOffset));
   if (!quote) {
     hideToolbar();
     return;
   }
-  pending = { quote, line: lineOf(range.startContainer) };
+  pending = { quote, line: lineOf(range.startContainer), uri: inPeek ? peekUri : undefined };
   hidePopover();
   showToolbar(range.getBoundingClientRect());
 }
@@ -782,7 +808,7 @@ function createHighlight(color: string): void {
   if (!pending) {
     return;
   }
-  post({ type: 'create', quote: pending.quote, line: pending.line, color });
+  post({ type: 'create', quote: pending.quote, line: pending.line, color, uri: pending.uri });
   document.getSelection()?.removeAllRanges();
   hideToolbar();
 }
@@ -800,11 +826,14 @@ function showPopover(id: string, anchor: HTMLElement, focusNote: boolean): void 
   const color = anchor.dataset.color ?? '';
   const note = anchor.title || '';
   const isFile = anchor.classList.contains('ma-file');
+  // A highlight in a link preview belongs to the file it shows.
+  const uri = peekBody.contains(anchor) ? peekUri : undefined;
   popoverId = id;
+  popoverUri = uri;
 
   const swatches = el('div', 'ma-swatches');
   swatches.append(
-    ...current.palette.map((c, i) => swatch(c, i, c.name === color, () => post({ type: 'update', id, color: c.name }))),
+    ...current.palette.map((c, i) => swatch(c, i, c.name === color, () => post({ type: 'update', id, color: c.name, uri }))),
   );
 
   const textarea = el('textarea', 'ma-note');
@@ -816,7 +845,7 @@ function showPopover(id: string, anchor: HTMLElement, focusNote: boolean): void 
     const value = textarea.value.trim();
     if (value !== saved) {
       saved = value;
-      post({ type: 'update', id, note: value });
+      post({ type: 'update', id, note: value, uri });
     }
   };
   textarea.addEventListener('blur', saveNote);
@@ -836,13 +865,13 @@ function showPopover(id: string, anchor: HTMLElement, focusNote: boolean): void 
   source.addEventListener('click', () => {
     const line = lineOf(anchor);
     if (line !== undefined) {
-      post({ type: 'revealLine', line });
+      post({ type: 'revealLine', line, uri });
     }
   });
   const remove = el('button', 'ma-danger', 'Delete');
   remove.type = 'button';
   remove.addEventListener('click', () => {
-    post({ type: 'delete', id });
+    post({ type: 'delete', id, uri });
     hidePopover();
   });
   actions.append(where, el('span', 'ma-spacer'), source, remove);
@@ -873,6 +902,7 @@ function hidePopover(): void {
   }
   popover.hidden = true;
   popoverId = undefined;
+  popoverUri = undefined;
 }
 
 // ─── Link preview ───────────────────────────────────────────────────────────
@@ -900,6 +930,8 @@ let peekTimer: ReturnType<typeof setTimeout> | undefined;
 let peekHideTimer: ReturnType<typeof setTimeout> | undefined;
 /** Counts requests, so an answer for a link no longer hovered is dropped. */
 let peekRequest = 0;
+/** The file the card shows. */
+let peekUri: string | undefined;
 
 /** A link within this document or to a local file (only Markdown files get an answer). */
 function peekable(href: string): boolean {
@@ -911,7 +943,7 @@ function requestPeek(link: HTMLAnchorElement): void {
   const id = ++peekRequest;
   if (href.startsWith('#')) {
     if (current) {
-      showPeek(link, current.title, current.html);
+      showPeek(link, { uri: viewState.uri, title: current.title, html: current.html, highlights: current.highlights });
     }
   } else {
     post({ type: 'peek', id, href });
@@ -962,33 +994,53 @@ function headingLevel(node: Element | undefined): number | undefined {
   return m ? Number(m[1]) : undefined;
 }
 
-function showPeek(link: HTMLAnchorElement, title: string, html?: string, error?: string): void {
+function showPeek(link: HTMLAnchorElement, shown: { uri: string; title: string; html?: string; highlights?: StoredHighlight[]; error?: string }): void {
   if (link !== peekLink || !link.isConnected) {
     return;
   }
+  // The same file again (after a change) keeps its place in the card.
+  const refresh = !peek.hidden && peekUri === shown.uri;
+  const scrollTop = peekBody.scrollTop;
+  peekUri = shown.uri;
   const fragment = (link.getAttribute('href') ?? '').split('#')[1] ?? '';
   const template = el('template');
-  template.innerHTML = html ?? '';
-  // Numbered across the whole document, as it would be in its own preview.
+  template.innerHTML = shown.html ?? '';
+  // Numbered and highlighted across the whole document, as in its own preview.
   numberHeadingsIn(template.content, numbering);
-  const section = error ?? peekSection(template.content, fragment);
-  peekTitle.textContent = typeof section === 'object' && section.place ? `${title} › ${section.place}` : title;
+  decorateFileMarks(template.content);
+  paintStored(shown.highlights ?? [], template.content);
+  const section = shown.error ?? peekSection(template.content, fragment);
+  peekTitle.textContent = typeof section === 'object' && section.place ? `${shown.title} › ${section.place}` : shown.title;
   if (typeof section === 'string') {
     peekBody.replaceChildren(el('p', 'ma-peek-error', section));
   } else {
     const holder = el('div');
     holder.append(...section.blocks);
-    // Old line numbers and ids would confuse scroll sync and links in the document.
-    clearSourceAttributes(holder);
-    decorateFileMarks(holder);
+    // Ids would clash with the document's; source lines stay, for new highlights' line hints.
+    for (const node of holder.querySelectorAll('[id]')) {
+      node.removeAttribute('id');
+    }
     peekBody.replaceChildren(...holder.childNodes);
     if (section.more) {
       peekBody.append(el('p', 'ma-peek-more', '…'));
     }
   }
   peek.hidden = false;
-  peekBody.scrollTop = 0;
+  peekBody.scrollTop = refresh ? scrollTop : 0;
   positionPeek(link);
+  if (popoverUri) {
+    refreshPopover();
+  }
+}
+
+/** While text in the card is selected or one of its highlights is open, it stays. */
+function peekPinned(): boolean {
+  if (peek.hidden) {
+    return false;
+  }
+  const selection = document.getSelection();
+  const selecting = !!selection && !selection.isCollapsed && !!pending?.uri;
+  return selecting || (!popover.hidden && !!popoverUri);
 }
 
 /** Below the hovered line of the link, or above it when there is more room there. */
@@ -1012,14 +1064,28 @@ function hidePeek(): void {
   clearTimeout(peekTimer);
   clearTimeout(peekHideTimer);
   peekLink = undefined;
+  peekUri = undefined;
   peekRequest++;
   peek.hidden = true;
   peekBody.replaceChildren();
+  // The toolbar and popover of a highlight in the card go with it.
+  if (pending?.uri) {
+    hideToolbar();
+  }
+  if (popoverUri) {
+    hidePopover();
+  }
 }
 
 /** Hide soon, so the pointer can cross from the link to the card. */
-function leavePeek(to: EventTarget | null): void {
+function leavePeek(e: MouseEvent): void {
+  const to = e.relatedTarget;
   if (to instanceof Node && (peekLink?.contains(to) || peek.contains(to))) {
+    return;
+  }
+  // Not while selecting text in it, or annotating.
+  if (e.buttons || peekPinned()) {
+    clearTimeout(peekHideTimer);
     return;
   }
   clearTimeout(peekHideTimer);
@@ -1039,8 +1105,8 @@ content.addEventListener('mouseover', (e) => {
     clearTimeout(peekHideTimer);
     return;
   }
-  // Not while selecting text.
-  if (e.buttons || !peekable(link.getAttribute('href') ?? '')) {
+  // Not while selecting text, or annotating in the card.
+  if (e.buttons || peekPinned() || !peekable(link.getAttribute('href') ?? '')) {
     return;
   }
   hidePeek();
@@ -1050,22 +1116,27 @@ content.addEventListener('mouseover', (e) => {
 });
 content.addEventListener('mouseout', (e) => {
   if (peekLink && peekLink.contains(e.target as Node)) {
-    leavePeek(e.relatedTarget);
+    leavePeek(e);
   }
 });
 peek.addEventListener('mouseenter', () => clearTimeout(peekHideTimer));
-peek.addEventListener('mouseleave', (e) => leavePeek(e.relatedTarget));
+peek.addEventListener('mouseleave', (e) => leavePeek(e));
 // The title goes where the link does.
 peekTitle.addEventListener('click', () => {
   const link = peekLink;
   hidePeek();
   link?.click();
 });
-// Links in the card stay put: VS Code's frame would otherwise follow them.
 peek.addEventListener('click', (e) => {
-  if ((e.target as Element).closest('a')) {
+  const target = e.target as Element;
+  // Links in the card stay put: VS Code's frame would otherwise follow them.
+  if (target.closest('a')) {
     e.preventDefault();
     e.stopPropagation();
+  }
+  const hl = target.closest<HTMLElement>('.ma-hl');
+  if (hl && peekBody.contains(hl) && document.getSelection()?.isCollapsed !== false && hl.dataset.id) {
+    showPopover(hl.dataset.id, hl, false);
   }
 });
 
@@ -1103,7 +1174,8 @@ document.addEventListener('keydown', (e) => {
 
 document.addEventListener('mousedown', (e) => {
   const target = e.target as Node;
-  if (!peek.contains(target)) {
+  // The colour toolbar and popover act on the card, so using them keeps it.
+  if (!peek.contains(target) && !toolbar.contains(target) && !popover.contains(target)) {
     hidePeek();
   }
   if (!toc.contains(target) && !tocButton.contains(target)) {
@@ -1468,7 +1540,12 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       break;
     case 'peek':
       if (message.id === peekRequest && peekLink) {
-        showPeek(peekLink, message.title, message.html, message.error);
+        showPeek(peekLink, message);
+      }
+      break;
+    case 'peekChanged':
+      if (peekLink && message.uri === peekUri) {
+        requestPeek(peekLink);
       }
       break;
   }

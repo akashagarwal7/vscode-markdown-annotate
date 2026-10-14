@@ -29,7 +29,7 @@ Click a highlight to open its popover:
 
 To read two parts of a long file side by side, run **Duplicate Annotatable Preview** (the split icon in a preview's title bar). A second preview of the file opens beside the first, at the same place. Up to two previews are open at a time. With two open, **Duplicate** in either one moves the other to the same place, and opening a third file swaps out the preview you looked at least recently. Each preview has its own **Sync scroll** checkbox. The second preview starts with it off, so it stays where you put it while the first one follows the editor.
 
-Hovering a link to a heading, a line or another Markdown file shows where it points in a card, like the editor's hovers: the heading's section, or the start of the file. Click the card's title to follow the link.
+Hovering a link to a heading, a line or another Markdown file shows where it points in a card, like the editor's hovers: the heading's section, or the start of the file. Click the card's title to follow the link. The card shows the linked file's highlights, and you can highlight, recolour, add notes and delete in it as in the preview; changes go to the linked file. The card stays open while you select text in it or edit one of its highlights.
 
 `Cmd+Alt+click` (`Ctrl+Alt+click` on Windows and Linux) on a link opens it in the other preview, as the chord opens to the side in the editor. The other preview goes to the heading the link points to and switches files if it needs to, and the focus stays where you clicked. If only one preview is open, a second one opens beside it. Links to other kinds of file open in an editor beside the preview.
 
