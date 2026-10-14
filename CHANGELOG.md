@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.0
+
+- The numbered-list button in the preview header numbers the headings (1., 1.1., 1.2.1. and so on), in the preview, the table of contents and link previews. A lone top heading, the document's title, is left unnumbered. It's kept for every file, in the `markdownAnnotate.numberHeadings` setting.
+
 ## 0.8.0
 
 - Hovering a link to a heading, a line or another Markdown file shows where it points in a floating card, like the editor's hovers: the heading's section, or the start of the file. Click the card's title to follow the link.
