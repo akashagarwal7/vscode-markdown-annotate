@@ -135,6 +135,7 @@ function handle(m: FromWebview) {
 // `?demo` seeds a few highlights and opens the colour toolbar (used for the README screenshot).
 if (location.search.includes('demo')) {
   document.body.className = location.search.includes('dark') ? 'vscode-dark' : 'vscode-light';
+  harness.numberHeadings = true;
   harness.source = `# Reading notes
 
 Markdown Annotate lets you <mark data-hl="yellow" data-hl-id="demo01">highlight passages in the preview</mark>
