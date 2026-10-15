@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.0
+
+- The colour picker that appears on a selection has a link box: type a path or `#` a section, with completions of the workspace's files and the file's headings, and press **Link** to make the selected text a Markdown link. Works in link previews too, linking in the linked file.
+- **Undo** and **Redo** buttons in the preview header take back, or do again, the highlights, colour changes, notes, deletions and links made in that preview, stored or written into the file. Also `Cmd/Ctrl+Z` and `Cmd+Shift+Z` (`Ctrl+Y`).
+
 ## 0.10.0
 
 - Link previews show the linked file's highlights, and you can annotate in them: select text to highlight it, or click a highlight to recolour it, add a note or delete it. Changes go to the linked file. The card stays open while you select text in it or edit one of its highlights.
