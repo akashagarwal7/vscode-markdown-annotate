@@ -71,7 +71,41 @@ function send() {
 }
 (window as any).__send = send;
 
+// Stands in for the extension's undo history, for this file only.
+type Snapshot = { source: string; stored: StoredHighlight[] };
+const done: { label: string; before: Snapshot; after: Snapshot }[] = [];
+const undone: typeof done = [];
+const snapshot = (): Snapshot => ({ source: harness.source, stored: [...harness.stored] });
+const postHistory = () => window.postMessage({ type: 'history', undo: done.at(-1)?.label, redo: undone.at(-1)?.label }, '*');
+const LABELS: Partial<Record<FromWebview['type'], string>> = { create: 'Highlight', delete: 'Delete', link: 'Link' };
+
 function handle(m: FromWebview) {
+  if ((m.type === 'undo' || m.type === 'redo') && (m.type === 'undo' ? done : undone).length) {
+    const step = (m.type === 'undo' ? done : undone).pop()!;
+    const to = m.type === 'undo' ? step.before : step.after;
+    harness.source = to.source;
+    harness.stored = [...to.stored];
+    (m.type === 'undo' ? undone : done).push(step);
+    postHistory();
+    setTimeout(send, 0);
+    return;
+  }
+  const label = 'uri' in m && m.uri ? undefined : m.type === 'update' ? (m.color ? 'Colour' : 'Note') : LABELS[m.type];
+  if (!label) {
+    handleOne(m);
+    return;
+  }
+  const before = snapshot();
+  handleOne(m);
+  const after = snapshot();
+  if (before.source !== after.source || JSON.stringify(before.stored) !== JSON.stringify(after.stored)) {
+    done.push({ label, before, after });
+    undone.length = 0;
+    postHistory();
+  }
+}
+
+function handleOne(m: FromWebview) {
   harness.messages.push(m);
   // The extension only moves the editor; nothing to re-render.
   if (m.type === 'scrolled') {

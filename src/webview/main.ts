@@ -6,6 +6,8 @@ import { findQuote, quoteFromRange, strip, TextQuote } from '../core/anchor';
 import { Range, wordDiff } from '../core/words';
 // VS Code's `list-ordered` codicon (CC BY 4.0, see ThirdPartyNotices.txt).
 import listOrderedSvg from './icons/list-ordered.svg';
+import redoSvg from './icons/redo.svg';
+import undoSvg from './icons/undo.svg';
 import type { FromWebview, PaletteColor, PreviewTheme, RenderMessage, StoredHighlight, ToWebview, WebviewState } from '../protocol';
 
 interface VsCodeApi {
@@ -187,7 +189,48 @@ tocButton.setAttribute('aria-controls', 'ma-toc');
 nav.prepend(tocButton);
 forwardButton.addEventListener('click', () => goForward());
 
-header.append(nav, titleEl, countEl, el('span', 'ma-spacer'), numberButton, diffButton, themeSwitch, syncLabel, toggleLabel);
+// Undo and redo what was done in this preview: highlights, notes, colours, links.
+const edits = el('div', 'ma-nav ma-edits');
+const undoButton = el('button', 'ma-icon-button');
+const redoButton = el('button', 'ma-icon-button');
+const REDO_KEY = MOD === '⌘' ? '⇧⌘Z' : 'Ctrl+Y';
+for (const [button, svg, verb] of [
+  [undoButton, undoSvg, 'undo'],
+  [redoButton, redoSvg, 'redo'],
+] as const) {
+  button.type = 'button';
+  button.append(icon(svg));
+  button.addEventListener('click', () => post({ type: verb }));
+  edits.append(button);
+}
+updateEdits({});
+
+function updateEdits(history: { undo?: string; redo?: string }): void {
+  for (const [button, verb, label, key] of [
+    [undoButton, 'Undo', history.undo, `${MOD}Z`],
+    [redoButton, 'Redo', history.redo, REDO_KEY],
+  ] as const) {
+    button.disabled = !label;
+    const what = label ? `${verb} ${label.toLowerCase()}` : verb;
+    button.title = `${what} (${key})`;
+    button.setAttribute('aria-label', what);
+  }
+}
+
+document.addEventListener('keydown', (e) => {
+  // Text being typed has its own undo.
+  if ((e.target as HTMLElement).closest?.('textarea, input') || !(e.metaKey || e.ctrlKey) || e.altKey) {
+    return;
+  }
+  const key = e.key.toLowerCase();
+  const verb = key === 'z' ? (e.shiftKey ? 'redo' : 'undo') : key === 'y' && !e.shiftKey ? 'redo' : undefined;
+  if (verb) {
+    e.preventDefault();
+    post({ type: verb });
+  }
+});
+
+header.append(nav, titleEl, countEl, el('span', 'ma-spacer'), edits, numberButton, diffButton, themeSwitch, syncLabel, toggleLabel);
 document.body.prepend(header);
 
 const toolbar = el('div', 'ma-toolbar');
@@ -1743,6 +1786,9 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
       if (document.activeElement === linkInput && linkingFrom() === message.base) {
         updateOptions();
       }
+      break;
+    case 'history':
+      updateEdits(message);
       break;
     case 'peekChanged':
       if (peekLink && message.uri === peekUri) {

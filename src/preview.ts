@@ -5,6 +5,7 @@ import { headingLine, renderMarkdown } from './core/markdown';
 import { numberHeadings, palette, previewTheme, scrollSync, setNumberHeadings, setPreviewTheme, setWriteToFile, writeToFile } from './config';
 import { BaseResult, GitBase } from './git';
 import type { HighlightService } from './highlights';
+import { EditHistory } from './history';
 import type { FromWebview, RenderMessage, ToWebview, WebviewState } from './protocol';
 
 export const VIEW_TYPE = 'markdownAnnotate.preview';
@@ -247,6 +248,8 @@ export class Preview {
     return this.diff;
   }
   private base?: Promise<BaseResult>;
+  /** What was done in this preview, to undo and redo. */
+  private readonly history: EditHistory;
   /** The source line at the top of the view, as last reported. */
   topLine?: number;
 
@@ -265,6 +268,7 @@ export class Preview {
     },
   ) {
     this.sync = start?.scrollSync ?? scrollSync();
+    this.history = new EditHistory(service.store);
     panel.iconPath = vscode.Uri.joinPath(extensionUri, 'media', 'preview-icon.svg');
     panel.webview.onDidReceiveMessage((m: FromWebview) => void this.handle(m));
   }
@@ -371,23 +375,35 @@ export class Preview {
         this.diff = !!message.diff;
         this.sync = message.scrollSync ?? scrollSync();
         await this.render();
+        this.postHistory();
         return;
       case 'setDiff':
         this.diff = message.value;
         await this.render();
         return;
-      case 'create':
-        await this.service.create(await this.document(message.uri), message.quote, message.line, message.color);
-        this.peekChanged(message.uri);
+      case 'create': {
+        const doc = await this.document(message.uri);
+        await this.record('Highlight', doc, () => this.service.create(doc, message.quote, message.line, message.color));
         return;
-      case 'update':
-        await this.service.update(await this.document(message.uri), message.id, message);
-        this.peekChanged(message.uri);
+      }
+      case 'update': {
+        const doc = await this.document(message.uri);
+        const label = message.color === undefined ? 'Note' : 'Colour';
+        await this.record(label, doc, () => this.service.update(doc, message.id, message));
         return;
-      case 'delete':
-        await this.service.remove(await this.document(message.uri), message.id);
-        this.peekChanged(message.uri);
+      }
+      case 'delete': {
+        const doc = await this.document(message.uri);
+        await this.record('Delete', doc, () => this.service.remove(doc, message.id));
         return;
+      }
+      case 'undo':
+      case 'redo': {
+        const uri = await (message.type === 'undo' ? this.history.undo() : this.history.redo());
+        this.postHistory();
+        this.peekChanged(uri?.toString());
+        return;
+      }
       case 'setWriteToFile':
         await setWriteToFile(message.value);
         return;
@@ -408,11 +424,13 @@ export class Preview {
         await this.revealLine(message.line, message.uri);
         return;
       case 'link': {
-        const reason = await this.service.link(await this.document(message.uri), message.quote, message.line, message.href);
-        if (reason) {
-          void vscode.window.showWarningMessage(`Markdown Annotate: couldn't add the link (${reason}).`);
-        }
-        this.peekChanged(message.uri);
+        const doc = await this.document(message.uri);
+        await this.record('Link', doc, async () => {
+          const reason = await this.service.link(doc, message.quote, message.line, message.href);
+          if (reason) {
+            void vscode.window.showWarningMessage(`Markdown Annotate: couldn't add the link (${reason}).`);
+          }
+        });
         return;
       }
       case 'linkTargets':
@@ -462,6 +480,17 @@ export class Preview {
       .map((f) => relativePath(from, f.path))
       .sort();
     this.post({ type: 'linkTargets', base: base.toString(), files });
+  }
+
+  /** Make a change to `doc` that Undo can take back. */
+  private async record(label: string, doc: vscode.TextDocument, change: () => Promise<unknown>): Promise<void> {
+    await this.history.record(label, doc, change);
+    this.postHistory();
+    this.peekChanged(doc.uri.toString());
+  }
+
+  private postHistory(): void {
+    this.post({ type: 'history', ...this.history.state });
   }
 
   /** Changes to this file re-render the preview; another file's are only in the link preview. */

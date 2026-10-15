@@ -29,6 +29,8 @@ Click a highlight to open its popover:
 
 `Cmd/Ctrl+click` anywhere in the preview also jumps to that line in the source.
 
+The undo and redo buttons in the preview header take back, or do again, what you did in that preview: new highlights, colours, notes, deletions and links, whether stored or written into the file. Also `Cmd/Ctrl+Z` and `Cmd+Shift+Z` (`Ctrl+Y`), except while typing a note or a link. If the file has been edited in the editor since, use the editor's own Undo there instead.
+
 To read two parts of a long file side by side, run **Duplicate Annotatable Preview** (the split icon in a preview's title bar). A second preview of the file opens beside the first, at the same place. Up to two previews are open at a time. With two open, **Duplicate** in either one moves the other to the same place, and opening a third file swaps out the preview you looked at least recently. Each preview has its own **Sync scroll** checkbox. The second preview starts with it off, so it stays where you put it while the first one follows the editor.
 
 Hovering a link to a heading, a line or another Markdown file shows where it points in a card, like the editor's hovers: the heading's section, or the start of the file. Click the card's title to follow the link. The card shows the linked file's highlights, and you can highlight, recolour, add notes and delete in it as in the preview; changes go to the linked file. The card stays open while you select text in it or edit one of its highlights.

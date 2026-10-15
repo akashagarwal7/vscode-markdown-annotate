@@ -56,6 +56,8 @@ export type ToWebview =
   | PeekResult
   /** Files a link can point to, relative to the folder of `base` (the file being linked from). */
   | { type: 'linkTargets'; base: string; files: string[] }
+  /** What Undo and Redo would take back or do again, if anything. */
+  | { type: 'history'; undo?: string; redo?: string }
   /** Highlights in the file the link preview shows changed: ask for it again. */
   | { type: 'peekChanged'; uri: string };
 
@@ -79,6 +81,9 @@ export type FromWebview =
   | { type: 'update'; id: string; color?: string; note?: string; uri?: string }
   | { type: 'delete'; id: string; uri?: string }
   | { type: 'revealLine'; line: number; uri?: string }
+  /** Take back, or do again, the last highlight or link change made in this preview. */
+  | { type: 'undo' }
+  | { type: 'redo' }
   /** Make the selected text a link to `href`. */
   | { type: 'link'; quote: TextQuote; line?: number; href: string; uri?: string }
   /** Ask for the files a link from `uri` (by default this preview's file) can point to. */
