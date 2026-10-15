@@ -54,6 +54,8 @@ export type ToWebview =
   | { type: 'goToLine'; line: number }
   | { type: 'focusHighlight'; id: string }
   | PeekResult
+  /** Files a link can point to, relative to the folder of `base` (the file being linked from). */
+  | { type: 'linkTargets'; base: string; files: string[] }
   /** Highlights in the file the link preview shows changed: ask for it again. */
   | { type: 'peekChanged'; uri: string };
 
@@ -77,6 +79,10 @@ export type FromWebview =
   | { type: 'update'; id: string; color?: string; note?: string; uri?: string }
   | { type: 'delete'; id: string; uri?: string }
   | { type: 'revealLine'; line: number; uri?: string }
+  /** Make the selected text a link to `href`. */
+  | { type: 'link'; quote: TextQuote; line?: number; href: string; uri?: string }
+  /** Ask for the files a link from `uri` (by default this preview's file) can point to. */
+  | { type: 'linkTargets'; uri?: string }
   | { type: 'setWriteToFile'; value: boolean }
   | { type: 'setScrollSync'; value: boolean }
   /** The preview was scrolled by the user; `line` is the source line now at its top. */

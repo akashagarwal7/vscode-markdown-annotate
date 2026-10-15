@@ -3,7 +3,7 @@
 import { findQuote } from '../../src/core/anchor';
 import { blockDiff } from '../../src/core/diff';
 import { buildTextMap, createMarkdown, renderMarkdown } from '../../src/core/markdown';
-import { applyEdits, groupPieces, insertEdits, newId, parseMarks, planMarks, removeEdits, retagEdits } from '../../src/core/marks';
+import { applyEdits, groupPieces, insertEdits, linkEdits, newId, parseMarks, planMarks, removeEdits, retagEdits } from '../../src/core/marks';
 import type { FromWebview, StoredHighlight } from '../../src/protocol';
 
 const md = createMarkdown();
@@ -75,6 +75,24 @@ function handle(m: FromWebview) {
   harness.messages.push(m);
   // The extension only moves the editor; nothing to re-render.
   if (m.type === 'scrolled') {
+    return;
+  }
+  // Stands in for the workspace's files.
+  if (m.type === 'linkTargets') {
+    const files = ['other.md', 'docs/guide.md', 'docs/setup-notes.md', 'images/diagram.png', 'src/main.ts', 'README.md'];
+    window.postMessage({ type: 'linkTargets', base: m.uri ?? 'file:///sample.md', files }, '*');
+    return;
+  }
+  if (m.type === 'link' && !m.uri?.endsWith('other.md')) {
+    const map = buildTextMap(md, harness.source);
+    const match = findQuote(map.chars, m.quote);
+    const edits = match ? linkEdits(map, match, m.href) : 'not found';
+    if (typeof edits === 'string') {
+      console.warn(edits);
+    } else {
+      harness.source = applyEdits(harness.source, edits);
+    }
+    setTimeout(send, 0);
     return;
   }
   // Stands in for another Markdown file next to this one, with stored highlights of its own.

@@ -31,8 +31,11 @@ const content = document.getElementById('content') as HTMLElement;
 
 let current: RenderMessage | undefined;
 let firstRender = true;
-/** A selection to highlight; `uri` is set when it is in a link preview of another file. */
-let pending: { quote: TextQuote; line?: number; uri?: string } | undefined;
+/**
+ * A selection to highlight or link; `uri` is set when it is in a link preview
+ * of another file. `range` is kept to show it while the link box has the focus.
+ */
+let pending: { quote: TextQuote; line?: number; uri?: string; range: globalThis.Range } | undefined;
 let unanchored = 0;
 
 // ─── Chrome: header, selection toolbar, popover ─────────────────────────────
@@ -189,8 +192,29 @@ document.body.prepend(header);
 
 const toolbar = el('div', 'ma-toolbar');
 toolbar.setAttribute('role', 'toolbar');
-toolbar.setAttribute('aria-label', 'Highlight colour');
+toolbar.setAttribute('aria-label', 'Highlight or link the selection');
 toolbar.hidden = true;
+const swatchRow = el('div', 'ma-swatches');
+// Make the selection a link: a box with completions, and a button.
+const linkForm = el('form', 'ma-link-form');
+const linkInput = el('input', 'ma-link-input');
+linkInput.type = 'text';
+linkInput.placeholder = 'Link to a file, or # a section';
+linkInput.setAttribute('aria-label', 'Link to');
+linkInput.setAttribute('role', 'combobox');
+linkInput.setAttribute('aria-autocomplete', 'list');
+linkInput.setAttribute('aria-controls', 'ma-link-options');
+linkInput.setAttribute('aria-expanded', 'false');
+linkInput.spellcheck = false;
+linkInput.autocomplete = 'off';
+const linkButton = el('button', 'ma-link-button', 'Link');
+linkButton.type = 'submit';
+const linkOptions = el('div', 'ma-link-options');
+linkOptions.id = 'ma-link-options';
+linkOptions.setAttribute('role', 'listbox');
+linkOptions.hidden = true;
+linkForm.append(linkInput, linkButton, linkOptions);
+toolbar.append(swatchRow, linkForm);
 document.body.appendChild(toolbar);
 
 const popover = el('div', 'ma-popover');
@@ -218,7 +242,7 @@ function capitalise(s: string): string {
 }
 
 function buildToolbar(palette: PaletteColor[]): void {
-  toolbar.replaceChildren(...palette.map((c, i) => swatch(c, i, false, () => createHighlight(c.name))));
+  swatchRow.replaceChildren(...palette.map((c, i) => swatch(c, i, false, () => createHighlight(c.name))));
 }
 
 function updatePalette(palette: PaletteColor[]): void {
@@ -781,7 +805,12 @@ function onSelectionChange(): void {
     hideToolbar();
     return;
   }
-  pending = { quote, line: lineOf(range.startContainer), uri: inPeek ? peekUri : undefined };
+  pending = { quote, line: lineOf(range.startContainer), uri: inPeek ? peekUri : undefined, range: range.cloneRange() };
+  // Text in a link can't be linked again.
+  const node = range.commonAncestorContainer;
+  const inLink = !!(node instanceof Element ? node : node.parentElement)?.closest('a') || !!range.cloneContents().querySelector('a');
+  linkForm.hidden = inLink;
+  resetLink();
   hidePopover();
   showToolbar(range.getBoundingClientRect());
 }
@@ -802,6 +831,8 @@ function showToolbar(rect: DOMRect): void {
 function hideToolbar(): void {
   toolbar.hidden = true;
   pending = undefined;
+  resetLink();
+  CSS.highlights?.delete('ma-pending');
 }
 
 function createHighlight(color: string): void {
@@ -816,6 +847,155 @@ function createHighlight(color: string): void {
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(value, max));
 }
+
+// ─── Linking the selection ──────────────────────────────────────────────────
+
+interface LinkOption {
+  href: string;
+  label: string;
+  detail: string;
+}
+
+/** Files a link can point to, per file linked from (relative to its folder). */
+const linkTargets = new Map<string, string[]>();
+const MAX_OPTIONS = 8;
+let options: LinkOption[] = [];
+let activeOption = -1;
+
+function resetLink(): void {
+  linkInput.value = '';
+  showOptions([]);
+}
+
+/** The file the selection is in: this one, or the one a link preview shows. */
+const linkingFrom = () => pending?.uri ?? viewState.uri;
+
+/** Sections of the file the selection is in, as `#id` links. */
+function sectionOptions(query: string): LinkOption[] {
+  const list = pending?.uri && pending.uri !== viewState.uri ? peekHeadings : headings().map(headingInfo);
+  const q = query.toLowerCase();
+  return list
+    .filter((h) => h.text.toLowerCase().includes(q) || h.id.includes(q))
+    .map((h) => ({ href: `#${h.id}`, label: h.number ? `${h.number}. ${h.text}` : h.text, detail: `#${h.id}` }));
+}
+
+/** Files whose path matches, those whose name starts with the query first. */
+function fileOptions(query: string): LinkOption[] {
+  const files = linkTargets.get(linkingFrom());
+  if (!files) {
+    // Asked for on focus; the answer updates the list.
+    return [];
+  }
+  const q = query.toLowerCase();
+  const rank = (path: string) => {
+    const name = path.slice(path.lastIndexOf('/') + 1).toLowerCase();
+    return name.startsWith(q) ? 0 : name.includes(q) ? 1 : path.toLowerCase().includes(q) ? 2 : 3;
+  };
+  return files
+    .map((path) => ({ path, rank: rank(path) }))
+    .filter((f) => f.rank < 3)
+    .sort((a, b) => a.rank - b.rank || a.path.length - b.path.length)
+    .slice(0, MAX_OPTIONS)
+    .map(({ path }) => {
+      const slash = path.lastIndexOf('/');
+      return { href: path, label: path.slice(slash + 1), detail: slash < 0 ? '' : path.slice(0, slash) };
+    });
+}
+
+function updateOptions(): void {
+  const value = linkInput.value.trim();
+  if (!value) {
+    showOptions([]);
+  } else if (value.startsWith('#')) {
+    showOptions(sectionOptions(value.slice(1)).slice(0, MAX_OPTIONS));
+  } else {
+    showOptions(fileOptions(value));
+  }
+}
+
+function showOptions(next: LinkOption[]): void {
+  options = next;
+  activeOption = -1;
+  linkOptions.replaceChildren(
+    ...next.map((o, i) => {
+      const item = el('div', 'ma-link-option');
+      item.id = `ma-link-option-${i}`;
+      item.setAttribute('role', 'option');
+      item.append(el('span', 'ma-link-label', o.label), el('span', 'ma-link-detail', o.detail));
+      item.title = o.href;
+      // Keep the focus in the box.
+      item.addEventListener('mousedown', (e) => e.preventDefault());
+      item.addEventListener('click', () => acceptOption(i));
+      return item;
+    }),
+  );
+  linkOptions.hidden = !next.length;
+  linkInput.setAttribute('aria-expanded', String(!!next.length));
+  linkInput.removeAttribute('aria-activedescendant');
+}
+
+function setActiveOption(index: number): void {
+  activeOption = index;
+  [...linkOptions.children].forEach((item, i) => item.setAttribute('aria-selected', String(i === index)));
+  linkInput.setAttribute('aria-activedescendant', `ma-link-option-${index}`);
+  linkOptions.children[index]?.scrollIntoView({ block: 'nearest' });
+}
+
+function acceptOption(index: number): void {
+  const option = options[index];
+  if (option) {
+    linkInput.value = option.href;
+    showOptions([]);
+    linkInput.focus();
+  }
+}
+
+/** Make the selection a link to what the box says. */
+function createLink(): void {
+  const href = linkInput.value.trim();
+  if (!pending || !href) {
+    linkInput.focus();
+    return;
+  }
+  post({ type: 'link', quote: pending.quote, line: pending.line, href, uri: pending.uri });
+  document.getSelection()?.removeAllRanges();
+  hideToolbar();
+}
+
+// Focusing the box clears the page's selection, so it's drawn as a highlight meanwhile.
+linkInput.addEventListener('focus', () => {
+  if (pending) {
+    CSS.highlights?.set('ma-pending', new Highlight(pending.range));
+  }
+  // Fresh each time, as files come and go.
+  linkTargets.delete(linkingFrom());
+  post({ type: 'linkTargets', uri: pending?.uri });
+  updateOptions();
+});
+linkInput.addEventListener('input', updateOptions);
+linkInput.addEventListener('keydown', (e) => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    if (options.length) {
+      const step = e.key === 'ArrowDown' ? 1 : -1;
+      setActiveOption((activeOption + step + options.length) % options.length);
+    }
+  } else if ((e.key === 'Enter' || e.key === 'Tab') && activeOption >= 0) {
+    e.preventDefault();
+    acceptOption(activeOption);
+  } else if (e.key === 'Tab' && options.length) {
+    e.preventDefault();
+    acceptOption(0);
+  } else if (e.key === 'Escape' && options.length) {
+    // Close the completions first; a second Escape closes the toolbar.
+    e.stopPropagation();
+    showOptions([]);
+  }
+});
+linkForm.addEventListener('submit', (e) => {
+  e.preventDefault();
+  createLink();
+});
 
 // ─── Popover for an existing highlight ──────────────────────────────────────
 
@@ -932,6 +1112,8 @@ let peekHideTimer: ReturnType<typeof setTimeout> | undefined;
 let peekRequest = 0;
 /** The file the card shows. */
 let peekUri: string | undefined;
+/** All headings of the file the card shows, for linking from a selection in it. */
+let peekHeadings: HeadingInfo[] = [];
 
 /** A link within this document or to a local file (only Markdown files get an answer). */
 function peekable(href: string): boolean {
@@ -1009,6 +1191,7 @@ function showPeek(link: HTMLAnchorElement, shown: { uri: string; title: string; 
   numberHeadingsIn(template.content, numbering);
   decorateFileMarks(template.content);
   paintStored(shown.highlights ?? [], template.content);
+  peekHeadings = headings(template.content).map(headingInfo);
   const section = shown.error ?? peekSection(template.content, fragment);
   peekTitle.textContent = typeof section === 'object' && section.place ? `${shown.title} › ${section.place}` : shown.title;
   if (typeof section === 'string') {
@@ -1038,9 +1221,8 @@ function peekPinned(): boolean {
   if (peek.hidden) {
     return false;
   }
-  const selection = document.getSelection();
-  const selecting = !!selection && !selection.isCollapsed && !!pending?.uri;
-  return selecting || (!popover.hidden && !!popoverUri);
+  // The toolbar is up for a selection in the card (maybe with the focus in the link box).
+  return (!toolbar.hidden && !!pending?.uri) || (!popover.hidden && !!popoverUri);
 }
 
 /** Below the hovered line of the link, or above it when there is more room there. */
@@ -1150,6 +1332,9 @@ document.addEventListener('mouseup', (e) => {
 });
 
 document.addEventListener('keyup', (e) => {
+  if (toolbar.contains(e.target as Node)) {
+    return;
+  }
   if (e.shiftKey || e.key === 'Shift' || ((e.metaKey || e.ctrlKey) && e.key === 'a')) {
     onSelectionChange();
   }
@@ -1163,7 +1348,9 @@ document.addEventListener('keydown', (e) => {
     hideToc();
     return;
   }
-  if (!toolbar.hidden && pending && current && /^[1-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
+  // Digits pick a colour, except when typed into the link box.
+  const typing = (e.target as Element).closest?.('input, textarea');
+  if (!typing && !toolbar.hidden && pending && current && /^[1-9]$/.test(e.key) && !e.metaKey && !e.ctrlKey && !e.altKey) {
     const color = current.palette[Number(e.key) - 1];
     if (color) {
       e.preventDefault();
@@ -1330,6 +1517,14 @@ toc.id = 'ma-toc';
 toc.setAttribute('aria-label', 'Table of contents');
 toc.hidden = true;
 document.body.appendChild(toc);
+
+interface HeadingInfo {
+  id: string;
+  text: string;
+  number?: string;
+}
+
+const headingInfo = (h: HTMLElement): HeadingInfo => ({ id: h.id, text: h.textContent?.trim() ?? '', number: h.dataset.number });
 
 /** The document's headings (removed diff blocks have none: their ids are cleared). */
 function headings(root: ParentNode = content): HTMLElement[] {
@@ -1541,6 +1736,12 @@ window.addEventListener('message', (event: MessageEvent<ToWebview>) => {
     case 'peek':
       if (message.id === peekRequest && peekLink) {
         showPeek(peekLink, message);
+      }
+      break;
+    case 'linkTargets':
+      linkTargets.set(message.base, message.files);
+      if (document.activeElement === linkInput && linkingFrom() === message.base) {
+        updateOptions();
       }
       break;
     case 'peekChanged':

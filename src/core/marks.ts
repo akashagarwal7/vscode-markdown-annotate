@@ -365,6 +365,28 @@ export function retagEdits(pieces: MarkPiece[], attrs: MarkAttrs, style?: string
   return pieces.map((p) => ({ offset: p.openStart, length: p.openEnd - p.openStart, text: open }));
 }
 
+/**
+ * Edits that make the text at `match` a link to `href`, or why it can't be:
+ * the brackets go where a highlight's tags would, so they keep the inline
+ * Markdown intact, and the text has to be one piece.
+ */
+export function linkEdits(map: TextMap, match: QuoteMatch, href: string): Edit[] | string {
+  const plan = planMarks(map, match);
+  if (!plan.ok) {
+    return plan.reason.includes('code blocks') ? "text in code blocks can't be a link" : plan.reason;
+  }
+  if (plan.ranges.length !== 1) {
+    return "the selection spans several blocks, or formatting a link can't wrap";
+  }
+  const { start, end } = plan.ranges[0];
+  // A destination with spaces or parentheses needs angle brackets.
+  const dest = /[\s()]/.test(href) ? `<${href}>` : href;
+  return [
+    { offset: start, length: 0, text: '[' },
+    { offset: end, length: 0, text: `](${dest})` },
+  ];
+}
+
 /** Apply non-overlapping edits expressed against the original text. */
 export function applyEdits(text: string, edits: Edit[]): string {
   // Stable sort so inserts at the same offset keep their order

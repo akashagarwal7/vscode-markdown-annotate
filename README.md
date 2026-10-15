@@ -14,6 +14,8 @@ Run **Markdown Annotate: Open Annotatable Preview to the Side** (`Cmd+Alt+H` / `
 
 Selections can span formatting, links, list items, table cells and paragraphs.
 
+The picker also has a link box, to make the selected text a link in the Markdown source. Start with `#` to pick a section of the file; otherwise it completes the names of files in the workspace, as paths relative to the file. Press `Enter` or click **Link**. Text that is already a link, spans several blocks or is in a code block can't be linked.
+
 ### Recolour, annotate, delete
 
 Every highlight is also marked on the preview's scrollbar in its colour, so you can see where they are in a long document. Highlights with a note get an outlined mark.

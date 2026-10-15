@@ -887,3 +887,108 @@ html::-webkit-scrollbar {
   width: 16px;
   height: 16px;
 }
+
+/* ─── Linking the selection ──────────────────────────────────────────────── */
+
+/* The selection, while the link box has the focus (which clears the real one). */
+::highlight(ma-pending) {
+  background-color: var(--vscode-editor-selectionBackground, rgba(38, 79, 120, 0.35));
+}
+
+.ma-toolbar {
+  align-items: center;
+}
+
+.ma-link-form {
+  position: relative;
+  display: flex;
+  gap: 4px;
+  padding-left: 6px;
+  margin-left: 2px;
+  border-left: 1px solid var(--ma-border);
+}
+
+.ma-link-form[hidden] {
+  display: none;
+}
+
+.ma-link-input {
+  width: 190px;
+  padding: 3px 6px;
+  font: inherit;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, var(--ma-border));
+  border-radius: 4px;
+}
+
+.ma-link-input:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.ma-link-button {
+  padding: 2px 8px;
+  font: inherit;
+  color: var(--vscode-button-foreground, #fff);
+  background: var(--vscode-button-background, #0e639c);
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.ma-link-button:hover {
+  background: var(--vscode-button-hoverBackground, #1177bb);
+}
+
+.ma-link-options {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 6px;
+  width: 300px;
+  max-height: 240px;
+  overflow: auto;
+  padding: 4px 0;
+  background: var(--vscode-editorWidget-background);
+  border: 1px solid var(--ma-border);
+  border-radius: var(--ma-radius);
+  box-shadow: 0 4px 16px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.3));
+}
+
+.ma-link-options[hidden] {
+  display: none;
+}
+
+.ma-link-option {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 3px 10px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ma-link-option:hover,
+.ma-link-option[aria-selected='true'] {
+  background: var(--vscode-list-hoverBackground, rgba(128, 128, 128, 0.2));
+}
+
+.ma-link-option[aria-selected='true'] {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+
+.ma-link-label {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ma-link-detail {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--ma-muted);
+  font-size: 11px;
+}

@@ -12,6 +12,7 @@ import {
   fileHighlights,
   groupPieces,
   insertEdits,
+  linkEdits,
   newId,
   parseMarks,
   planMarks,
@@ -114,6 +115,18 @@ export class HighlightService {
       );
     }
     await this.store.add(doc.uri, highlight);
+  }
+
+  /** Make the text at `quote` a link to `href`; returns why it couldn't be. */
+  async link(doc: vscode.TextDocument, quote: TextQuote, line: number | undefined, href: string): Promise<string | undefined> {
+    const map = this.textMap(doc);
+    const match = this.locate(map, quote, line);
+    const edits = match ? linkEdits(map, match, href) : 'the text could not be found in the source';
+    if (typeof edits === 'string') {
+      return edits;
+    }
+    await applyToDocument(doc, edits);
+    return undefined;
   }
 
   async update(doc: vscode.TextDocument, id: string, patch: { color?: string; note?: string }): Promise<void> {

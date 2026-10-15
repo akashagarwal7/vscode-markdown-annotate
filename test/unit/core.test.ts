@@ -7,6 +7,7 @@ import {
   applyEdits,
   fileHighlights,
   insertEdits,
+  linkEdits,
   parseMarks,
   planMarks,
   removeEdits,
@@ -262,6 +263,37 @@ suite('marks', () => {
     assert.ok(plan.ok);
     const out = applyEdits('word\n', insertEdits(plan.ranges, { id: 'i', color: 'pink' }, 'background-color:#f9a8d4'));
     assert.strictEqual(out, '<mark data-hl="pink" data-hl-id="i" style="background-color:#f9a8d4">word</mark>\n');
+  });
+});
+
+suite('links', () => {
+  function link(source: string, exact: string, href: string): string {
+    const map = buildTextMap(md, source);
+    const match = findQuote(map.chars, quote(exact));
+    assert.ok(match, `quote not found: ${exact}`);
+    const edits = linkEdits(map, match, href);
+    assert.ok(typeof edits !== 'string', edits as string);
+    return applyEdits(source, edits);
+  }
+
+  test('wraps plain text', () => {
+    assert.strictEqual(link('Read the guide first.\n', 'the guide', 'guide.md'), 'Read [the guide](guide.md) first.\n');
+  });
+
+  test('keeps emphasis around it intact', () => {
+    assert.strictEqual(link('Some **bold text** here.\n', 'bold text', '#intro'), 'Some **[bold text](#intro)** here.\n');
+    assert.strictEqual(link('Some **bold** text.\n', 'bold text', '#intro'), 'Some [**bold** text](#intro).\n');
+  });
+
+  test('puts a destination with spaces in angle brackets', () => {
+    assert.strictEqual(link('See notes.\n', 'notes', 'my notes.md'), 'See [notes](<my notes.md>).\n');
+  });
+
+  test('refuses text across blocks and in code blocks', () => {
+    const map = buildTextMap(md, 'One.\n\nTwo.\n');
+    assert.strictEqual(typeof linkEdits(map, findQuote(map.chars, quote('One.Two'))!, 'x.md'), 'string');
+    const code = buildTextMap(md, '```\nconst x = 1;\n```\n');
+    assert.strictEqual(typeof linkEdits(code, findQuote(code.chars, quote('const x'))!, 'x.md'), 'string');
   });
 });
 

@@ -407,6 +407,17 @@ export class Preview {
       case 'revealLine':
         await this.revealLine(message.line, message.uri);
         return;
+      case 'link': {
+        const reason = await this.service.link(await this.document(message.uri), message.quote, message.line, message.href);
+        if (reason) {
+          void vscode.window.showWarningMessage(`Markdown Annotate: couldn't add the link (${reason}).`);
+        }
+        this.peekChanged(message.uri);
+        return;
+      }
+      case 'linkTargets':
+        await this.linkTargets(message.uri);
+        return;
       case 'openLink':
         await this.openLink(message.href);
         return;
@@ -439,6 +450,18 @@ export class Preview {
     const webview = this.panel.webview;
     const html = renderMarkdown(this.service.md, text, { resolveImage: (src) => this.resolveImage(webview, src, target) });
     this.post({ type: 'peek', id, uri, title, html, highlights: await this.service.store.get(target) });
+  }
+
+  /** The workspace's files, as relative links from the folder of `uri` (this file by default). */
+  private async linkTargets(uri?: string): Promise<void> {
+    const base = uri ? vscode.Uri.parse(uri) : this.uri;
+    const from = base.path.slice(0, base.path.lastIndexOf('/'));
+    const found = await vscode.workspace.findFiles('**/*', undefined, MAX_LINK_TARGETS);
+    const files = found
+      .filter((f) => f.scheme === base.scheme && !/\/(node_modules|\.git)\//.test(f.path) && f.toString() !== base.toString())
+      .map((f) => relativePath(from, f.path))
+      .sort();
+    this.post({ type: 'linkTargets', base: base.toString(), files });
   }
 
   /** Changes to this file re-render the preview; another file's are only in the link preview. */
@@ -544,6 +567,20 @@ export class Preview {
 </body>
 </html>`;
   }
+}
+
+/** Files offered when linking, at most. */
+const MAX_LINK_TARGETS = 5000;
+
+/** `to` relative to the folder `from`, both absolute paths. */
+function relativePath(from: string, to: string): string {
+  const a = from.split('/').filter(Boolean);
+  const b = to.split('/').filter(Boolean);
+  let i = 0;
+  while (i < a.length && i < b.length - 1 && a[i] === b[i]) {
+    i++;
+  }
+  return [...Array(a.length - i).fill('..'), ...b.slice(i)].join('/');
 }
 
 function isMarkdown(uri: vscode.Uri): boolean {
