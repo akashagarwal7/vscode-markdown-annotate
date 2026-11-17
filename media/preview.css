@@ -491,9 +491,10 @@ body[data-effective-theme='dark'] {
   opacity: 0.85;
 }
 
-/* A change bar in the left margin, like the editor gutter. */
-.markdown-body > .ma-diff-add::before,
-.markdown-body > .ma-diff-del::before {
+/* A change bar in the left margin, like the editor gutter. ::after, not
+   ::before, because a numbered heading already uses ::before for its number. */
+.markdown-body > .ma-diff-add::after,
+.markdown-body > .ma-diff-del::after {
   content: '';
   position: absolute;
   top: 0;
@@ -504,7 +505,7 @@ body[data-effective-theme='dark'] {
   background: var(--ma-diff-add);
 }
 
-.markdown-body > .ma-diff-del::before {
+.markdown-body > .ma-diff-del::after {
   background: var(--ma-diff-del);
 }
 
@@ -859,8 +860,8 @@ html::-webkit-scrollbar {
 /* ─── Heading numbers ────────────────────────────────────────────────────── */
 
 .markdown-body [data-number]::before {
-  content: attr(data-number) ".";
-  margin-right: 0.5em;
+  content: attr(data-number) " ";
+  white-space: pre;
   color: var(--ma-muted);
   font-weight: 600;
 }

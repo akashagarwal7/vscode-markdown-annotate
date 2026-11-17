@@ -354,7 +354,8 @@ function numberHeadingsIn(root: ParentNode, on: boolean): void {
     const depth = titled ? depths[i] - 1 : depths[i];
     counts.length = depth + 1;
     counts[depth] = (counts[depth] ?? 0) + 1;
-    h.dataset.number = counts.map((c) => c ?? 0).join('.');
+    // "2.1.": the trailing dot is part of the number wherever it is shown.
+    h.dataset.number = `${counts.map((c) => c ?? 0).join('.')}.`;
   });
 }
 
@@ -919,7 +920,7 @@ function sectionOptions(query: string): LinkOption[] {
   const q = query.toLowerCase();
   return list
     .filter((h) => h.text.toLowerCase().includes(q) || h.id.includes(q))
-    .map((h) => ({ href: `#${h.id}`, label: h.number ? `${h.number}. ${h.text}` : h.text, detail: `#${h.id}` }));
+    .map((h) => ({ href: `#${h.id}`, label: h.number ? `${h.number} ${h.text}` : h.text, detail: `#${h.id}` }));
 }
 
 /** Files whose path matches, those whose name starts with the query first. */
@@ -1203,7 +1204,7 @@ function peekSection(root: DocumentFragment, fragment: string): { blocks: Elemen
     }
     start = Math.max(0, top.findIndex((b) => b.contains(target)));
     const number = (target as HTMLElement).dataset.number;
-    place = `${number ? `${number}. ` : ''}${target.textContent?.trim() || `#${id}`}`;
+    place = `${number ? `${number} ` : ''}${target.textContent?.trim() || `#${id}`}`;
   }
   const level = headingLevel(top[start]);
   const endsSection = (b: Element) => !!level && (headingLevel(b) ?? 7) <= level;
@@ -1612,7 +1613,7 @@ function buildToc(): void {
     ...list.map((h, i) => {
       const item = el('button', 'ma-toc-item', h.textContent?.trim() || h.id);
       if (h.dataset.number) {
-        item.prepend(el('span', 'ma-toc-number', `${h.dataset.number}.`));
+        item.prepend(el('span', 'ma-toc-number', h.dataset.number));
       }
       item.type = 'button';
       item.style.paddingLeft = `${10 + depths[i] * 14}px`;
