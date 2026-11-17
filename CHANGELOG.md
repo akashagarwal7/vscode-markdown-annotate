@@ -3,7 +3,8 @@
 ## 0.11.0
 
 - The colour picker that appears on a selection has a link box: type a path or `#` a section, with completions of the workspace's files and the file's headings, and press **Link** to make the selected text a Markdown link. Works in link previews too, linking in the linked file.
-- **Undo** and **Redo** buttons in the preview header take back, or do again, the highlights, colour changes, notes, deletions and links made in that preview, stored or written into the file. Also `Cmd/Ctrl+Z` and `Cmd+Shift+Z` (`Ctrl+Y`).
+- **Undo** and **Redo** buttons in the preview header take back, or do again, the highlights, colour changes, notes, deletions and links made in that preview, stored or written into the file. Also `Cmd/Ctrl+Z` and `Cmd+Shift+Z` (`Ctrl+Y`). A step isn't undone over a file that has been edited in the editor since.
+- Text that is already a link, spans several blocks or is in a code block can't be linked.
 
 ## 0.10.0
 
@@ -11,7 +12,7 @@
 
 ## 0.9.0
 
-- The numbered-list button in the preview header numbers the headings (1., 1.1., 1.2.1. and so on), in the preview, the table of contents and link previews. A lone top heading, the document's title, is left unnumbered. It's kept for every file, in the `markdownAnnotate.numberHeadings` setting.
+- The numbered-list button in the preview header numbers the headings (1., 1.1., 1.2.1. and so on), in the preview, the table of contents and link previews. A lone top heading, the document's title, is left unnumbered, and skipped heading levels are collapsed. It's kept for every file, in the `markdownAnnotate.numberHeadings` setting.
 
 ## 0.8.0
 
@@ -29,10 +30,11 @@
 - `Cmd+Alt+click` (`Ctrl+Alt+click`) on a link shows it in the other preview, at the heading it points to, switching files if needed. The focus stays where you clicked.
 - Up to two previews are open at a time. Opening a preview for a third file replaces the one you looked at least recently.
 - With **Sync scroll** on, the editor follows the preview you last scrolled or focused.
+- Clicking a link to a heading no longer also lets VS Code scroll the preview to the `#fragment` itself.
 
 ## 0.5.0
 
-- **← →** buttons in the preview header go back and forward through jumps within the preview: links to headings, highlights picked in the sidebar, and clicks on the scrollbar. Also `Cmd/Ctrl+[` and `]`, `Alt+←` and `→`, and the mouse's back and forward buttons.
+- **← →** buttons in the preview header go back and forward through jumps within the preview: links to headings, highlights picked in the sidebar, and clicks on the scrollbar. Also `Cmd/Ctrl+[` and `]`, `Alt+←` and `→`, and the mouse's back and forward buttons. A place is restored exactly while the document is unchanged, and by source line after edits.
 
 ## 0.4.0
 
@@ -42,11 +44,11 @@
 ## 0.3.0
 
 - **Git diff** marks tables row by row: editing one row no longer marks the whole table, and removed rows show in place.
-- **Git diff** marks the words that changed within an edited paragraph or row in a stronger colour, as the editor's inline diff does.
+- **Git diff** marks the words that changed within an edited paragraph or row in a stronger colour, as the editor's inline diff does. A rewrite with too little in common with the old text isn't word-marked.
 
 ## 0.2.0
 
-- **Git diff** button in the preview header, on by default: show changes since the last commit (`HEAD`) as a rendered diff, with change marks on the scrollbar.
+- **Git diff** button in the preview header, on by default: show changes since the last commit (`HEAD`) as a rendered diff, with change marks on the scrollbar. It refreshes as you type and as the repository changes. Outside a git repository the button is dimmed and its tooltip says why. Removed text can't be highlighted.
 - Highlights are marked on the preview's scrollbar in their colours; highlights with a note are outlined.
 - The preview draws its own scrollbar, so the marks show in VS Code and Cursor alike.
 - The README carries a few real highlights to try the preview on.
@@ -62,3 +64,5 @@
 - Code uses the text colour rather than VS Code's yellow preformatted-text colour.
 - Auto / Light / Dark switch in the preview header, independent of the VS Code theme.
 - Configurable palette; keys `1`–`9` apply a colour to the current selection.
+- `Cmd/Ctrl+click` in the preview jumps to that line in the source; `Cmd+Alt+H` / `Ctrl+Alt+H` opens the preview to the side.
+- Settings to turn off editor tinting (`markdownAnnotate.showInEditor`) and inline colours on written `<mark>` tags (`markdownAnnotate.fileMarks.inlineStyle`).

@@ -10,11 +10,11 @@ This README has a few real highlights written into it: open it with **Open Annot
 
 ### Highlight the preview
 
-Run **Markdown Annotate: Open Annotatable Preview to the Side** (`Cmd+Alt+H` / `Ctrl+Alt+H`, or the colour icon in the editor title bar). <mark data-hl="yellow" data-hl-id="rdm001" style="background-color:#fde047;color:#1f2328">Select any text and a small colour picker appears</mark>; click a colour or press `1`–`9`.
+Run **Markdown Annotate: Open Annotatable Preview to the Side** (`Cmd+Alt+H` / `Ctrl+Alt+H`, the colour icon in the editor title bar, or the editor's right-click menu), or **Open Annotatable Preview** from a Markdown file's right-click menu in the Explorer. <mark data-hl="yellow" data-hl-id="rdm001" style="background-color:#fde047;color:#1f2328">Select any text and a small colour picker appears</mark>; click a colour or press `1`–`9`.
 
-Selections can span formatting, links, list items, table cells and paragraphs.
+Selections can span formatting, links, list items, table cells and paragraphs. `Escape` closes the picker, and any open popover, link preview or table of contents.
 
-The picker also has a link box, to make the selected text a link in the Markdown source. Start with `#` to pick a section of the file; otherwise it completes the names of files in the workspace, as paths relative to the file. Press `Enter` or click **Link**. Text that is already a link, spans several blocks or is in a code block can't be linked.
+The picker also has a link box, to make the selected text a link in the Markdown source. Start with `#` to pick a section of the file; otherwise it completes the names of files in the workspace, as paths relative to the file. `↑`/`↓` move through the completions, `Tab` or `Enter` takes one, and `Escape` closes them. Press `Enter` or click **Link**. In a link preview's card, the link is written into the linked file. Text that is already a link, spans several blocks or is in a code block can't be linked.
 
 ### Recolour, annotate, delete
 
@@ -29,9 +29,19 @@ Click a highlight to open its popover:
 
 `Cmd/Ctrl+click` anywhere in the preview also jumps to that line in the source.
 
+### Scroll sync
+
+With **Sync scroll** on (the checkbox in the preview header), the preview follows the editor and the editor follows the preview, both ways. Both directions keep your place within a long paragraph instead of jumping to its first line. With two previews open, the editor follows the one you last scrolled or focused.
+
+### Undo and redo
+
 The undo and redo buttons in the preview header take back, or do again, what you did in that preview: new highlights, colours, notes, deletions and links, whether stored or written into the file. Also `Cmd/Ctrl+Z` and `Cmd+Shift+Z` (`Ctrl+Y`), except while typing a note or a link. If the file has been edited in the editor since, use the editor's own Undo there instead.
 
+### Two previews
+
 To read two parts of a long file side by side, run **Duplicate Annotatable Preview** (the split icon in a preview's title bar). A second preview of the file opens beside the first, at the same place. Up to two previews are open at a time. With two open, **Duplicate** in either one moves the other to the same place, and opening a third file swaps out the preview you looked at least recently. Each preview has its own **Sync scroll** checkbox. The second preview starts with it off, so it stays where you put it while the first one follows the editor.
+
+### Links, contents and navigation
 
 Hovering a link to a heading, a line or another Markdown file shows where it points in a card, like the editor's hovers: the heading's section, or the start of the file. Click the card's title to follow the link. The card shows the linked file's highlights, and you can highlight, recolour, add notes and delete in it as in the preview; changes go to the linked file. The card stays open while you select text in it or edit one of its highlights.
 
@@ -39,9 +49,9 @@ Hovering a link to a heading, a line or another Markdown file shows where it poi
 
 The **☰** button at the top left of the preview lists the document's headings, with the section you're reading marked. Click one, or move with the arrow keys and press Enter, to go there; Back returns.
 
-The numbered-list button in the header numbers the headings, in the preview and the table of contents: 1., 1.1., 1.2.1. and so on. A lone top heading is taken as the document's title and left unnumbered. It's a reading preference, kept for every file (the `markdownAnnotate.numberHeadings` setting).
+The numbered-list button in the header numbers the headings, in the preview and the table of contents: 1., 1.1., 1.2.1. and so on. The numbers also show in link previews. A lone top heading is taken as the document's title and left unnumbered, and skipped levels are collapsed, so a `####` straight under a `##` is one level deeper, not two. It's a reading preference, kept for every file (the `markdownAnnotate.numberHeadings` setting).
 
-The **← →** buttons in the preview header go back and forward through jumps within the preview (links to headings, highlights picked in the sidebar, clicks on the scrollbar), like a browser. Also `Cmd/Ctrl+[` and `]`, `Alt+←` and `→`, or the mouse's back and forward buttons.
+The **← →** buttons in the preview header go back and forward through jumps within the preview (links to headings, highlights picked in the sidebar, clicks on the scrollbar), like a browser. Also `Cmd/Ctrl+[` and `]`, `Alt+←` and `→`, or the mouse's back and forward buttons. A place comes back exactly while the document is unchanged, and by source line after it has been edited.
 
 ### Syntax highlighting
 
@@ -53,7 +63,7 @@ The **Auto / Light / Dark** switch in the preview header either follows your VS 
 
 ### Git diff
 
-The **Git diff** button in the preview header (on by default) shows what changed since the last commit (`HEAD`), rendered: new or changed blocks get a green bar, and removed or replaced blocks are shown in red, struck through, where they used to be. The changes are also marked on the scrollbar, like the editor's overview ruler: changes in the left half, highlights in the right. It updates as you type and after commits. <mark data-hl="pink" data-hl-id="rdm002" title="Open this README in the annotatable preview: these highlights are real, and show on its scrollbar." style="background-color:#f9a8d4;color:#1f2328">Files that aren't committed yet show entirely as new.</mark> Changes are shown per top-level block (a paragraph, list, …), so editing one list item marks the whole list; tables are marked row by row. Within an edited paragraph or row, the words that changed are tinted more strongly, as in the editor's inline diff. Highlighting works as usual on the current text; the removed text can't be highlighted. Uses VS Code's built-in Git extension; outside a git repository the button is dimmed and its tooltip says why.
+The **Git diff** button in the preview header (on by default) shows what changed since the last commit (`HEAD`), rendered: new or changed blocks get a green bar, and removed or replaced blocks are shown in red, struck through, where they used to be. The changes are also marked on the scrollbar, like the editor's overview ruler: changes in the left half, highlights in the right. It updates as you type and after commits. <mark data-hl="pink" data-hl-id="rdm002" title="Open this README in the annotatable preview: these highlights are real, and show on its scrollbar." style="background-color:#f9a8d4;color:#1f2328">Files that aren't committed yet show entirely as new.</mark> Changes are shown per top-level block (a paragraph, list, …), so editing one list item marks the whole list; tables are marked row by row. Within an edited paragraph or row, the words that changed are tinted more strongly, as in the editor's inline diff; a rewrite with too little in common with the old text isn't word-marked. Highlighting works as usual on the current text; the removed text can't be highlighted. Uses VS Code's built-in Git extension; outside a git repository the button is dimmed and its tooltip says why.
 
 ### Stored separately, or written into the file
 
@@ -77,7 +87,7 @@ When a selection crosses Markdown syntax (say it starts inside `**bold**` and en
 ### In the editor and the sidebar
 
 - Highlighted text is tinted in the Markdown source editor, with `<mark>` tags dimmed and the colours shown on the scrollbar.
-- The Explorer's **Markdown Highlights** view lists the current document's highlights. Click one to reveal it; use the inline actions to recolour, edit the note or delete. Highlights whose text has since been removed from the document are marked with a warning.
+- The Explorer's **Markdown Highlights** view lists the current document's highlights. Click one to reveal it (a jump that **←** goes back from); use the inline actions or the right-click menu to recolour, edit the note or delete. Highlights whose text has since been removed from the document are marked with a warning. The view's title bar has **Export**, and its `…` menu has Write Highlights into / Move Highlights out of the file, Toggle Writing New Highlights into File and Clear All Highlights.
 - **Export Highlights as Markdown** opens a summary grouped by colour, with notes and line numbers.
 
 ![Dark theme](docs/preview-dark.png)
@@ -88,6 +98,7 @@ When a selection crosses Markdown syntax (say it starts inside `**bold**` and en
 |---|---|---|
 | `markdownAnnotate.writeToFile` | `false` | Write new highlights into the Markdown source as `<mark>` tags |
 | `markdownAnnotate.previewTheme` | `auto` | Preview colour theme: `auto` (follow VS Code), `light` or `dark` |
+| `markdownAnnotate.numberHeadings` | `false` | Number the headings in the preview, its table of contents and link previews. Also the numbered-list button in the preview header |
 | `markdownAnnotate.storage` | `workspace` | Where stored highlights are kept: `workspace` (VS Code's private storage) or `sidecar` (`<file>.md.annotations.json` next to the file, which you can commit) |
 | `markdownAnnotate.colors` | yellow, green, blue, pink, orange, purple | The palette, as `{ "name", "color" }` items. `name` is saved with each highlight |
 | `markdownAnnotate.fileMarks.inlineStyle` | `true` | Add `style="background-color:…"` to written `<mark>` tags so other renderers show the colour |
@@ -102,7 +113,8 @@ Stored highlights are saved as the highlighted text plus a little context on eit
 
 | Command | Description |
 |---|---|
-| Open Annotatable Preview / … to the Side | Open the highlightable preview for the current Markdown file |
+| Open Annotatable Preview / … to the Side | Open the highlightable preview for the current Markdown file (`Cmd+Alt+H` / `Ctrl+Alt+H` to the side) |
+| Duplicate Annotatable Preview | Open a second preview of the file beside the focused one, at the same place |
 | Write Highlights into Markdown File | Convert stored highlights to `<mark>` tags |
 | Move Highlights out of Markdown File | Strip `<mark>` highlights from the file and store them instead |
 | Toggle Writing New Highlights into File | Flip `markdownAnnotate.writeToFile` |
