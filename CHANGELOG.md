@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.11.1
+
+- Heading numbers read `1. `, `2.1. ` and so on, with a space after the dot, in the preview, the table of contents, link completions and link previews.
+- With **Git diff** on, a changed heading's number no longer slips under the change bar.
+
 ## 0.11.0
 
 - The colour picker that appears on a selection has a link box: type a path or `#` a section, with completions of the workspace's files and the file's headings, and press **Link** to make the selected text a Markdown link. Works in link previews too, linking in the linked file.
