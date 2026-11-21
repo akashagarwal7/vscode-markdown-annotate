@@ -6,6 +6,8 @@ Highlight a Markdown preview in several colours, attach notes, and — if you wa
 
 This README has a few real highlights written into it: open it with **Open Annotatable Preview** to see them, with their notes, in the preview and on its scrollbar.
 
+On iPhone and iPad, [Markdown Annotate for iOS](https://apps.apple.com/app/id6824798724) reads and writes the same highlights, so files shared through a synced folder or git keep them on both.
+
 ## Features
 
 ### Highlight the preview
